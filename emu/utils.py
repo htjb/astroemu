@@ -51,7 +51,7 @@ def compute_mean_std(loader):
     # Compute means and stds
     mean_spec = spec_sum / n_spec_samples
     var_spec = (spec_sum_sq / n_spec_samples) - (mean_spec ** 2)
-    std_spec = torch.where(var_spec == 0, 1, torch.sqrt(var_spec))
+    std_spec = torch.where(var_spec <= 1e-3, 1, torch.sqrt(var_spec))
     
     mean_input = input_sum / n_input_samples  
     var_input = (input_sum_sq / n_input_samples) - (mean_input ** 2)
