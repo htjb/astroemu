@@ -34,14 +34,13 @@ class standardise:
         return y, x
 
 class log_base_10():
-    def __init__(self, yselector=None, xselector=None, eps=1e-8):
+    def __init__(self, yselector=None, xselector=None, eps=1e-15):
         """
         Logarithm base 10 transformation for numerical stability.
 
         Args:
             yselector (list, optional): columns of the spectrum to apply log transformation.
-                Assumes y is a 2D tensor of [:, N] where N is the number of different spectra
-                dependent on x.
+                Assumes that the spectra are in the last dimension.
             xselector (list, optional): columns of the input parameters to apply log transformation.
         """
         self.yselector = yselector
@@ -54,13 +53,13 @@ class log_base_10():
         if x is not None:
             if self.xselector is not None:
                 for i in self.xselector:
-                    x[:, i] = torch.log10(x[:, i] + self.eps)
+                    x[..., i] = torch.log10(x[..., i] + self.eps)
             else:
                 x = torch.log10(x + self.eps)
         
         if self.yselector is not None:
             for i in self.yselector:
-                y[:, i] = torch.log10(y[:, i] + self.eps)
+                y[..., i] = torch.log10(y[..., i] + self.eps)
         else:
             y = torch.log10(y + self.eps)
         
@@ -72,13 +71,13 @@ class log_base_10():
         if x is not None:
             if self.xselector is not None:
                 for i in self.xselector:
-                    x[:, i] = torch.pow(10, x[:, i]) - self.eps
+                    x[..., i] = torch.pow(10, x[..., i]) - self.eps
             else:
                 x = torch.pow(10, x) - self.eps
         
         if self.yselector is not None:
             for i in self.yselector:
-                y[:, i] = torch.pow(10, y[:, i]) - self.eps
+                y[..., i] = torch.pow(10, y[..., i]) - self.eps
         else:
             y = torch.pow(10, y) - self.eps
         
