@@ -5,67 +5,20 @@ from torch.utils.data import Dataset, DataLoader
 import torch
 from sklearn.model_selection import train_test_split
 from emu.normalisation import standardise, log_base_10
+from emu.dataloaders import SpectrumDataset, NormalizeSpectrumDataset
 from tqdm import tqdm
 import optax
 from jax import random
 import jax.numpy as jnp
 import matplotlib.pyplot as plt
 import glob
+import os
+import pickle
 
 key = random.PRNGKey(0)
 
 base_dir = 'fsps-data1'
-files = glob.glob(base_dir + '/*.npz')[:1000]  # Limit to 1000 files for testing
-
-def load_spectrum(file):
-    data = jnp.load(file)
-    input = {k: data[k] for k in data.files}
-    return input
-
-class SpectrumDataset(Dataset):
-    def __init__(self, files, x, y, forward_pipeline=None, variable_input=None):
-        self.files = files
-        self.varied_input = variable_input
-        self.forward_pipeline = forward_pipeline
-        self.x = x
-        self.y = y
-
-    def __len__(self):
-        return len(self.files)
-
-    def __getitem__(self, idx):
-        input = load_spectrum(self.files[idx])
-        x = torch.tensor(input[self.x])
-        y = torch.tensor(input[self.y])
-        if self.varied_input:
-            input = torch.tensor([input[k].item() for k in self.varied_input], dtype=torch.float32)
-        else:
-            input = torch.tensor([input[k].item() for k in sorted(input.keys())
-                                  if k not in [self.x, self.y]], dtype=torch.float32)
-        input = torch.tile(input, (y.shape[0], 1))  # Ensure input shape matches spec
-        input = torch.cat([x[:, None], input], axis=1)  # Concatenate wavelength with parameters
-        if self.forward_pipeline:
-            return self.forward_pipeline.forward(y, input)
-        else:
-            return y, input
-    
-class NormalizeSpectrumDataset(SpectrumDataset):
-    def __init__(self, files, x, y,
-                 forward_pipeline=None,
-                 super_forward_pipeline=None,
-                 variable_input=None):
-        super().__init__(files, x, y, 
-                         forward_pipeline=super_forward_pipeline, 
-                         variable_input=variable_input)
-        self.normalize_pipeline = forward_pipeline
-
-
-    def __getitem__(self, idx):
-        y, input = super().__getitem__(idx)
-        if self.normalize_pipeline:
-            return self.normalize_pipeline.forward(y, input)
-        else:
-            return y, input
+files = glob.glob(base_dir + '/*.npz')#[:1000]  # Limit to 1000 files for testing
 
 train_files, test_files = train_test_split(files, test_size=0.2, random_state=42)
 test_files, val_files = train_test_split(test_files, test_size=0.5, random_state=42)
@@ -105,18 +58,27 @@ val_dataset = NormalizeSpectrumDataset(
     variable_input=['logzsol', 'tage']
 )
 
-train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True)
-test_loader = DataLoader(test_dataset, batch_size=32, shuffle=False)
-val_loader = DataLoader(val_dataset, batch_size=32, shuffle=False)  
+hyperparameters = {
+    'in_size': 3,  # wavelength + logzsol + tage
+    'out_size': 1,  # spectrum value
+    'hidden_size': 64,
+    'nlayers': 3,
+    'batch_size': 32,
+    'learning_rate': 1e-3,
+    'weight_decay': 1e-4,
+}
+
+train_loader = DataLoader(train_dataset, batch_size=hyperparameters['batch_size'], shuffle=True)
+test_loader = DataLoader(test_dataset, batch_size=hyperparameters['batch_size'], shuffle=False)
+val_loader = DataLoader(val_dataset, batch_size=hyperparameters['batch_size'], shuffle=False)  
 
 key, subkey = random.split(key)
 params = initialise_mlp(
-    in_size=3,
-    out_size=1,
-    hidden_size=64,
-    nlayers=3,
+    in_size=hyperparameters['in_size'],
+    out_size=hyperparameters['out_size'],
+    hidden_size=hyperparameters['hidden_size'],
+    nlayers=hyperparameters['nlayers'],
     key=subkey,
-    scale=1e-1
 )
 
 def loss_fn(params, input, spec):
@@ -137,14 +99,12 @@ def train_step(params, opt_state, input, spec):
     new_params = optax.apply_updates(params, updates)  # Apply updates
     return new_params, opt_state, loss
 
-epochs = 2
+epochs = 1000
 
 pbar = tqdm(range(epochs), desc="Training Progress")
 
-learning_rate = 1e-3
-weight_decay = 1e-4
-
-optimizer = optax.adamw(learning_rate, weight_decay=weight_decay)
+optimizer = optax.adamw(learning_rate=hyperparameters['learning_rate'], 
+                        weight_decay=hyperparameters['weight_decay'])
 opt_state = optimizer.init(params)
 
 best_loss = float('inf')
@@ -183,11 +143,18 @@ for epoch in pbar:
         }
     )
 
-print("Training complete.")
-print("Best validation loss:", best_loss)
-import os
 os.makedirs('trained_networks', exist_ok=True)
-torch.save(best_network_params, 'trained_networks/best_network_params.pth')
+
+
+output = {
+    'network_params': best_network_params,
+    'hyperparameters': hyperparameters,
+    'super_forward_pipeline': super_forward_pipeline,
+    'standardiser': standardiser,
+}
+with open('trained_networks/network_params.pkl', 'wb') as f:
+    pickle.dump(output, f)
+
 loss = []
 count = 0
 for example in test_loader:
@@ -201,7 +168,7 @@ for example in test_loader:
         spec, _ = super_forward_pipeline.backward(spec, None)
         pred, _ = super_forward_pipeline.backward(pred, None)
         plt.scatter(pred.numpy(), spec.numpy(), c='k', s=1, alpha=0.5)
-        loss.append(torch.abs((pred - spec)/ (spec))*100)  # Avoid division by zero
+        loss.append((torch.abs((pred - spec)/ (spec))*100).flatten())  # Avoid division by zero
         count += 1
 plt.plot(plt.xlim(), plt.ylim(), 'r--')  # Diagonal line
 plt.loglog()
@@ -211,7 +178,7 @@ plt.title('Predicted vs Actual Spectrum')
 plt.savefig(f'trained_networks/predicted_vs_actual_{count}.png')
 plt.close()
 
-loss = torch.stack(loss)
+loss = torch.concat(loss)
 mask = torch.isfinite(loss)
 loss = loss[mask]
 print("Test Loss:", torch.mean(loss))
@@ -223,25 +190,34 @@ plt.title('Loss Distribution on Test Set')
 plt.savefig('trained_networks/loss_distribution.png')
 
 
-for example in test_loader:
-    spec, input = example
-    input = jnp.array(input)
-    pred = mlp(best_network_params, input)
-    print(pred.shape, spec.shape)
-    print(input.shape)
-    pred = torch.tensor(pred[:, :, 0])
-    spec, _ = standardiser.backward(spec, None)
-    pred, _ = standardiser.backward(pred, None)
-    spec, _ = super_forward_pipeline.backward(spec, None)
-    pred, _ = super_forward_pipeline.backward(pred, None)
-    
-    plt.figure(figsize=(10, 5))
-    plt.plot(spec.numpy(), label='Actual Spectrum', color='blue')
-    plt.plot(pred.numpy(), label='Predicted Spectrum', color='orange')
-    plt.xlabel('Wavelength Index')
-    plt.ylabel('Spectrum Value')
-    plt.title('Actual vs Predicted Spectrum')
-    plt.legend()
-    plt.savefig(f'trained_networks/spectrum_comparison_example.png')
-    plt.close()
-    exit()
+spec, input = next(iter(test_loader))
+pred = mlp(best_network_params, jnp.array(input))
+print(pred.shape, spec.shape)
+print(input.shape)
+pred = torch.tensor(pred[:, :, 0])
+spec, input = standardiser.backward(spec, input)
+pred, _= standardiser.backward(pred, _)
+spec, input = super_forward_pipeline.backward(spec, input)
+pred, _ = super_forward_pipeline.backward(pred, _)
+
+fig, axes = plt.subplots(1, 2, figsize=(10, 6))
+biggest_diff = 0
+for j in range(len(spec)):
+    if j < 10:
+        difference = torch.abs((spec[j] - pred[j])/spec[j])*100
+        mask = torch.isfinite(difference)
+        difference = difference[mask]
+        axes[0].plot(input[0, :, 0], spec[j].numpy(), label=f'Spectrum {j}')
+        axes[0].plot(input[0, :, 0], pred[j].numpy(), label=f'Predicted {j}', linestyle='--')
+        axes[1].plot(input[0, :, 0][mask], difference, label=f'Difference {j}')
+        max_diff = torch.max(difference[input[0, :, 0][mask] < 1e6])
+        if max_diff > biggest_diff:
+            biggest_diff = max_diff
+[axes[i].set_xlim(1e2, 1e6) for i in range(2)]
+axes[1].set_ylim(0, biggest_diff * 1.1)
+axes[1].set_xscale('log')
+axes[0].loglog()
+axes[0].set_xlabel('Wavelength Index')
+axes[0].set_ylabel('Spectrum Value')
+plt.savefig(f'trained_networks/spectrum_comparison_example.png')
+plt.close()
