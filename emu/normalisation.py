@@ -1,49 +1,85 @@
 import torch
 
-class standardise_spectrum:
-    def __init__(self, y, input, spec_mean, spec_std, input_mean, input_std):
+class standardise:
+    def __init__(self, y_mean: torch.Tensor, y_std: torch.Tensor, 
+                 x_mean: torch.Tensor, x_std: torch.Tensor):
         """
         Standardises the spectrum and input parameters.
         
         Args:
-            y (array-like): The spectrum values.
-            input (array-like): The input parameters.
             lam (array-like): The wavelength values.
-            spec_mean (float): Mean of the spectrum for standardisation.
-            spec_std (float): Standard deviation of the spectrum for standardisation.
-            input_mean (float): Mean of the input parameters for standardisation.
-            input_std (float): Standard deviation of the input parameters for standardisation.
+            y_mean (float): Mean of the spectrum for standardisation.
+            y_std (float): Standard deviation of the spectrum for standardisation.
+            x_mean (float): Mean of the input parameters for standardisation.
+            x_std (float): Standard deviation of the input parameters for standardisation.
         
         Returns:
             tuple: Standardised spectrum and input parameters.
         """
-        self.spec_mean = spec_mean
-        self.spec_std = spec_std
-        self.input_mean = input_mean
-        self.input_std = input_std
+        self.y_mean = y_mean
+        self.y_std = y_std
+        self.x_mean = x_mean
+        self.x_std = x_std
 
-    def forward(self, y, input):
-        y = (y - self.spec_mean) / self.spec_std
-        input = (input - self.input_mean) / self.input_std
-        return y, input
+    def forward(self, y, x=None):
+        y = (y - self.y_mean) / self.y_std
+        if x is not None:
+            x = (x - self.x_mean) / self.x_std
+        return y, x
 
-    def backward(self, y, input):
-        y = y * self.spec_std + self.spec_mean
-        input = input * self.input_std + self.input_mean
-        return y, input
+    def backward(self, y, x):
+        y = y * self.y_std + self.y_mean
+        if x is not None:
+            x = x * self.x_std + self.x_mean
+        return y, x
 
-def log_base_10(x):
-    """
-    Computes the logarithm base 10 of x, handling zero values.
+class log_base_10():
+    def __init__(self, yselector=None, xselector=None, eps=1e-8):
+        """
+        Logarithm base 10 transformation for numerical stability.
+
+        Args:
+            yselector (list, optional): columns of the spectrum to apply log transformation.
+                Assumes y is a 2D tensor of [:, N] where N is the number of different spectra
+                dependent on x.
+            xselector (list, optional): columns of the input parameters to apply log transformation.
+        """
+        self.yselector = yselector
+        self.xselector = xselector
+        self.eps = eps
+
+    def forward(self, y: torch.Tensor, x: torch.Tensor = None) -> (
+            tuple[torch.Tensor, torch.Tensor]):
+        
+        if x is not None:
+            if self.xselector is not None:
+                for i in self.xselector:
+                    x[:, i] = torch.log10(x[:, i] + self.eps)
+            else:
+                x = torch.log10(x + self.eps)
+        
+        if self.yselector is not None:
+            for i in self.yselector:
+                y[:, i] = torch.log10(y[:, i] + self.eps)
+        else:
+            y = torch.log10(y + self.eps)
+        
+        return y, x
     
-    Args:
-        x (array-like): Input values.
-    
-    Returns:
-        array-like: Logarithm base 10 of x, with a small constant added to avoid log(0).
-    """
-    def forward(x):
-        return torch.log10(torch.tensor(x) + 1e-10)  # Add small constant to avoid log(0)
-    
-    def backward(x):
-        return torch.pow(10, x) - 1e-10
+    def backward(self, y: torch.Tensor, x: torch.Tensor = None) -> (
+            tuple[torch.Tensor, torch.Tensor]):
+        
+        if x is not None:
+            if self.xselector is not None:
+                for i in self.xselector:
+                    x[:, i] = torch.pow(10, x[:, i]) - self.eps
+            else:
+                x = torch.pow(10, x) - self.eps
+        
+        if self.yselector is not None:
+            for i in self.yselector:
+                y[:, i] = torch.pow(10, y[:, i]) - self.eps
+        else:
+            y = torch.pow(10, y) - self.eps
+        
+        return y, x
