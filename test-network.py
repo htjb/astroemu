@@ -4,6 +4,7 @@ import jax
 from torch.utils.data import Dataset, DataLoader
 import torch
 from sklearn.model_selection import train_test_split
+from emu.normalisation import standardise_spectrum, log_base_10
 from tqdm import tqdm
 import optax
 from jax import random
@@ -18,79 +19,86 @@ files = glob.glob(base_dir + '/*.npz')[:1000]  # Limit to 1000 files for testing
 
 def load_spectrum(file):
     data = jnp.load(file)
-    lam = data['lam']
-    spec = data['spec']
-    input = {k: data[k] for k in data.files if k not in ['lam', 'spec']}
-    return lam, spec, input
+    input = {k: data[k] for k in data.files}
+    return input
 
 class SpectrumDataset(Dataset):
-    def __init__(self, files, variable_input=None):
+    def __init__(self, files, x, y, variable_input=None):
         self.files = files
         self.varied_input = variable_input
+        self.x = x
+        self.y = y
 
     def __len__(self):
         return len(self.files)
 
     def __getitem__(self, idx):
-        lam, spec, input = load_spectrum(self.files[idx])
-        lam = torch.log10(torch.tensor(lam))  # Log scale the wavelength
+        input = load_spectrum(self.files[idx])
+        x = input[self.x]
+        y = input[self.y]
+        lam = torch.log10(torch.tensor(x))  # Log scale the wavelength
         if self.varied_input:
             input = torch.tensor([input[k].item() for k in self.varied_input], dtype=torch.float32)
         else:
-            input = torch.tensor([input[k].item() for k in sorted(input.keys())])
-        input = torch.tile(input, (spec.shape[0], 1))  # Ensure input shape matches spec
+            input = torch.tensor([input[k].item() for k in sorted(input.keys())
+                                  if k not in [self.x, self.y]], dtype=torch.float32)
+        input = torch.tile(input, (y.shape[0], 1))  # Ensure input shape matches spec
         input = torch.cat([lam[:, None], input], axis=1)  # Concatenate wavelength with parameters
-        spec = torch.log10(torch.tensor(spec) + 1e-10)  # Log scale the spectrum
-        return spec, input
+        y = torch.log10(torch.tensor(y) + 1e-10)  # Log scale the spectrum
+        return y, input
     
 class NormalizeSpectrumDataset(SpectrumDataset):
-    def __init__(self, files,
-                 spec_mean, spec_std, input_mean, input_std,
+    def __init__(self, files, x, y,
+                 y_mean, y_std, input_mean, input_std,
                  variable_input=None):
-        super().__init__(files, variable_input)
-        self.spec_mean = spec_mean
-        self.spec_std = spec_std
+        super().__init__(files, x, y, variable_input)
+        self.y_mean = y_mean
+        self.y_std = y_std
         self.input_mean = input_mean
         self.input_std =  input_std
 
+
     def __getitem__(self, idx):
-        spec, input = super().__getitem__(idx)
-        spec_mean = torch.tensor(self.spec_mean, dtype=spec.dtype)
-        spec_std = torch.tensor(self.spec_std, dtype=spec.dtype)
+        y, input = super().__getitem__(idx)
+        y_mean = torch.tensor(self.y_mean, dtype=y.dtype)
+        y_std = torch.tensor(self.y_std, dtype=y.dtype)
         input_mean = torch.tensor(self.input_mean, dtype=input.dtype)
         input_std = torch.tensor(self.input_std, dtype=input.dtype)
         
-        spec = (spec - spec_mean) / spec_std
+        y = (y - y_mean) / y_std
         input = (input - input_mean) / input_std
         
-        return spec, input
+        return y, input
 
 train_files, test_files = train_test_split(files, test_size=0.2, random_state=42)
 test_files, val_files = train_test_split(test_files, test_size=0.5, random_state=42)
-train_dataset = SpectrumDataset(train_files, variable_input=['logzsol', 'tage'])
+train_dataset = SpectrumDataset(train_files, 'lam', 'spec', variable_input=['logzsol', 'tage'])
 train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True)
 spec_mean, spec_std, input_mean, input_std = compute_mean_std(train_loader)
 
-
 train_dataset = NormalizeSpectrumDataset(
-    train_files, variable_input=['logzsol', 'tage'],
-    spec_mean=spec_mean, spec_std=spec_std,
-    input_mean=input_mean, input_std=input_std
+    train_files, 'lam', 'spec',
+    y_mean=spec_mean, y_std=spec_std,
+    input_mean=input_mean, input_std=input_std,
+    variable_input=['logzsol', 'tage']
 )
 test_dataset = NormalizeSpectrumDataset(
-    test_files, variable_input=['logzsol', 'tage'],
-    spec_mean=spec_mean, spec_std=spec_std,
-    input_mean=input_mean, input_std=input_std
+    test_files, 'lam', 'spec',
+    y_mean=spec_mean, y_std=spec_std,
+    input_mean=input_mean, input_std=input_std,
+    variable_input=['logzsol', 'tage']
 )
 val_dataset = NormalizeSpectrumDataset(
-    val_files, variable_input=['logzsol', 'tage'],
-    spec_mean=spec_mean, spec_std=spec_std,
-    input_mean=input_mean, input_std=input_std
+    val_files, 'lam', 'spec',
+    y_mean=spec_mean, y_std=spec_std,
+    input_mean=input_mean, input_std=input_std,
+     variable_input=['logzsol', 'tage']
 )
 
 train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True)
 test_loader = DataLoader(test_dataset, batch_size=32, shuffle=False)
 val_loader = DataLoader(val_dataset, batch_size=32, shuffle=False)  
+
 
 key, subkey = random.split(key)
 params = initialise_mlp(
@@ -120,7 +128,7 @@ def train_step(params, opt_state, input, spec):
     new_params = optax.apply_updates(params, updates)  # Apply updates
     return new_params, opt_state, loss
 
-epochs = 100
+epochs = 2
 
 pbar = tqdm(range(epochs), desc="Training Progress")
 
@@ -132,6 +140,7 @@ opt_state = optimizer.init(params)
 
 best_loss = float('inf')
 patience = 50
+patience_counter = 0
 tl, vl = [], []
 for epoch in pbar:
     trainloss = []
@@ -171,16 +180,24 @@ import os
 os.makedirs('trained_networks', exist_ok=True)
 torch.save(best_network_params, 'trained_networks/best_network_params.pth')
 loss = []
+count = 0
 for example in test_dataset:
-    spec, input = example
-    spec = jnp.array(spec)
-    input = jnp.array(input)
-    pred = mlp(best_network_params, input)
-    loss.append(jnp.mean((pred[:, :, 0] - spec) ** 2))
+    if count < 100:
+        spec, input = example
+        spec = jnp.array(spec)
+        input = jnp.array(input)
+        pred = mlp(best_network_params, input)
+        spec = torch.tensor(spec) * spec_std + spec_mean
+        pred = torch.tensor(pred[:, 0]) * spec_std + spec_mean
+        spec = 10 ** spec  # Convert back from log scale
+        pred = 10 ** pred  # Convert back from log scale
+        loss.append(torch.abs((pred - spec)/ (spec))*100)  # Avoid division by zero
+        count += 1
 
-loss = jnp.stack(loss)
+loss = torch.stack(loss)
+print("Test Loss:", torch.mean(loss))
 
-plt.hist(loss, bins=50)
+plt.hist(loss.flatten(), bins=50)
 plt.xlabel('Loss')
 plt.ylabel('Frequency')
 plt.title('Loss Distribution on Test Set')
