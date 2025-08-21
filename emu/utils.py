@@ -1,6 +1,8 @@
 import torch
 
-def compute_mean_std(loader):
+def compute_mean_std(loader: torch.utils.data.DataLoader) -> (
+        tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]
+        ):
     """
     Memory safe mean and std computation
     
