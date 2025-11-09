@@ -26,4 +26,4 @@ jobs:
         run: ruff check . --line-length=79
 
       - name: Run isort (check mode)
-        run: isort . --check-only --profile ruff
+        run: isort . --check-only --profile black
