@@ -1,0 +1,29 @@
+name: Lint
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"  # match your local env if possible
+
+      - name: Install tools
+        run: |
+          pip install "ruff==0.12.9" "isort==6.0.1"
+
+      - name: Run Ruff (check mode)
+        run: ruff check . --line-length=79
+
+      - name: Run isort (check mode)
+        run: isort . --check-only --profile black --line-length=79

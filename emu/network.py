@@ -1,10 +1,9 @@
 import jax
-from jax import jit, random
 import jax.numpy as jnp
+from jax import random
 
-def initialise_mlp(
-    in_size, out_size, hidden_size, nlayers, key, scale=1e-1
-):
+
+def initialise_mlp(in_size, out_size, hidden_size, nlayers, key, scale=1e-1):
     keys = random.split(key, nlayers * 2 + 2 + 2)
     weights = (
         [
@@ -34,6 +33,7 @@ def initialise_mlp(
         ]
     )
     return {k: v for d in weights for k, v in d.items()}
+
 
 def mlp(params, input):
     act_fn = getattr(jax.nn, "relu")
