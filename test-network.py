@@ -1,3 +1,5 @@
+"""Test script for training and evaluating the neural network."""
+
 import glob
 import os
 import pickle
@@ -8,6 +10,7 @@ import matplotlib.pyplot as plt
 import optax
 import torch
 from jax import random
+from optax import OptState
 from sklearn.model_selection import train_test_split
 from torch.utils.data import DataLoader
 from tqdm import tqdm
@@ -103,7 +106,19 @@ params = initialise_mlp(
 )
 
 
-def loss_fn(params, input, spec):
+def loss_fn(
+    params: dict, input: jnp.ndarray, spec: jnp.ndarray
+) -> jnp.ndarray:
+    """Compute mean squared error loss.
+
+    Args:
+        params (dict): MLP parameters.
+        input (jnp.ndarray): Input array.
+        spec (jnp.ndarray): True spectrum array.
+
+    Returns:
+        jnp.ndarray: Mean squared error loss.
+    """
     pred = mlp(params, input)
     return jnp.mean((pred[:, :, 0] - spec) ** 2)
 
@@ -112,7 +127,21 @@ loss = jax.jit(loss_fn)
 grad_fn = jax.value_and_grad(loss)
 
 
-def train_step(params, opt_state, input, spec):
+def train_step(
+    params: dict, opt_state: OptState, input: jnp.ndarray, spec: jnp.ndarray
+) -> tuple[dict, OptState, jnp.ndarray]:
+    """Perform a single training step.
+
+    Args:
+        params (dict): MLP parameters.
+        opt_state (OptState): Optimizer state.
+        input (jnp.ndarray): Input array.
+        spec (jnp.ndarray): True spectrum array.
+
+    Returns:
+        tuple[dict, any, jnp.ndarray]: Updated parameters, optimizer state,
+            and loss value.
+    """
     loss, grads = grad_fn(params, input, spec)  # Compute loss and gradients
     updates, opt_state = optimizer.update(
         grads, opt_state, params
