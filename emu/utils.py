@@ -1,11 +1,12 @@
+"""Utility functions for emu package."""
+
 import torch
 
 
 def compute_mean_std(
     loader: torch.utils.data.DataLoader,
 ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
-    """
-    Memory safe mean and std computation
+    """Memory safe mean and std computation.
 
     Args:
         loader: DataLoader returning (spec, input) where:
@@ -44,7 +45,8 @@ def compute_mean_std(
         n_spec_samples += batch_size
 
         # === Process input ===
-        # input shape: [batch_size, 5000, N] -> we want stats across batch and 5000 dims
+        # input shape: [batch_size, 5000, N] -> we want stats across
+        # batch and 5000 dims
         input_flat = input_data.view(
             -1, input_data.size(-1)
         )  # [batch_size * 5000, N]
