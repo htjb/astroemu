@@ -7,14 +7,14 @@ class NormalisationPipeline:
     """Base class for normalisation pipelines."""
 
     def forward(
-        self, y: torch.Tensor, x: torch.Tensor
-    ) -> tuple[torch.Tensor, torch.Tensor]:
+        self, y: torch.Tensor, x: torch.Tensor | None = None
+    ) -> tuple[torch.Tensor, torch.Tensor | None]:
         """Apply forward transformation."""
         raise NotImplementedError
 
     def backward(
-        self, y: torch.Tensor, x: torch.Tensor
-    ) -> tuple[torch.Tensor, torch.Tensor]:
+        self, y: torch.Tensor, x: torch.Tensor | None = None
+    ) -> tuple[torch.Tensor, torch.Tensor | None]:
         """Apply backward transformation."""
         raise NotImplementedError
 
