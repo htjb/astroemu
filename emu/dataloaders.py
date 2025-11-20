@@ -30,7 +30,7 @@ class SpectrumDataset(Dataset):
 
     def __init__(
         self,
-        files: str,
+        files: list[str],
         x: str,
         y: str,
         forward_pipeline: NormalisationPipeline | None = None,
@@ -39,7 +39,7 @@ class SpectrumDataset(Dataset):
         """Initialize SpectrumDataset.
 
         Args:
-            files (str): List of file paths to .npz files.
+            files (list[str]): List of file paths to .npz files.
             x (str): Key for independent variable in .npz files.
             y (str): Key for dependent variable in .npz files.
             forward_pipeline (Any, optional): Preprocessing pipeline.
@@ -106,7 +106,7 @@ class NormalizeSpectrumDataset(SpectrumDataset):
 
     def __init__(
         self,
-        files: str,
+        files: list[str],
         x: str,
         y: str,
         forward_pipeline: NormalisationPipeline | None = None,
@@ -116,7 +116,7 @@ class NormalizeSpectrumDataset(SpectrumDataset):
         """Initialize NormalizeSpectrumDataset.
 
         Args:
-            files (str): List of file paths to .npz files.
+            files (list[str]): List of file paths to .npz files.
             x (str): Key for independent variable in .npz files.
             y (str): Key for dependent variable in .npz files.
             forward_pipeline (Any, optional): Normalization pipeline.
