@@ -32,7 +32,6 @@ class standardise(NormalisationPipeline):
         """Standardises the spectrum and input parameters.
 
         Args:
-            lam (array-like): The wavelength values.
             y_mean (float): Mean of the spectrum for standardisation.
             y_std (float): Standard deviation of the spectrum for
                 standardisation.
