@@ -1,9 +1,32 @@
+"""Neural network implementations for emu package."""
+
 import jax
 import jax.numpy as jnp
 from jax import random
 
 
-def initialise_mlp(in_size, out_size, hidden_size, nlayers, key, scale=1e-1):
+def initialise_mlp(
+    in_size: int,
+    out_size: int,
+    hidden_size: int,
+    nlayers: int,
+    key: int,
+    scale: float = 1e-1,
+) -> dict:
+    """Initialize MLP parameters.
+
+    Args:
+        in_size (int): Input size.
+        out_size (int): Output size.
+        hidden_size (int): Hidden layer size.
+        nlayers (int): Number of hidden layers.
+        key (int): JAX random key.
+        scale (float, optional): Scale for weight initialization.
+            Defaults to 1e-1.
+
+    Returns:
+        dict: MLP parameters.
+    """
     keys = random.split(key, nlayers * 2 + 2 + 2)
     weights = (
         [
@@ -35,7 +58,16 @@ def initialise_mlp(in_size, out_size, hidden_size, nlayers, key, scale=1e-1):
     return {k: v for d in weights for k, v in d.items()}
 
 
-def mlp(params, input):
+def mlp(params: dict, input: jnp.ndarray) -> jnp.ndarray:
+    """Multi-layer perceptron with residual connections.
+
+    Args:
+        params (dict): MLP parameters.
+        input (jnp.ndarray): Input array of shape [..., in_size].
+
+    Returns:
+        jnp.ndarray: Output array of shape [..., out_size].
+    """
     act_fn = getattr(jax.nn, "relu")
     num_layers = len(params) // 2  # total layers: input + hidden(s) + output
 
