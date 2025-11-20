@@ -91,7 +91,7 @@ class log_base_10(NormalisationPipeline):
         self,
         yselector: list[int] | None = None,
         xselector: list[int] | None = None,
-        eps: float | None = 1e-15,
+        eps: float = 1e-15,
     ) -> None:
         """Logarithm base 10 transformation for numerical stability.
 
@@ -101,7 +101,7 @@ class log_base_10(NormalisationPipeline):
                 Assumes that the spectra are in the last dimension.
             xselector (list[int] | None): columns of the input parameters to
                 apply log transformation.
-            eps (float | None): small value to add to avoid log(0).
+            eps (float): small value to add to avoid log(0).
         """
         self.yselector = yselector
         self.xselector = xselector
