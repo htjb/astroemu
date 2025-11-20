@@ -23,6 +23,9 @@ def initialise_mlp(
         key (int): JAX random key.
         scale (float, optional): Scale for weight initialization.
             Defaults to 1e-1.
+
+    Returns:
+        dict: MLP parameters.
     """
     keys = random.split(key, nlayers * 2 + 2 + 2)
     weights = (
