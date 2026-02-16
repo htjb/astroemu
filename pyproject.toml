@@ -1,18 +1,27 @@
 [project]
-name = "emu"
-version = "0.1.1"
-description = "Add your description here"
+name = "astroemu"
+version = "0.1.2"
+description = "Generalised framework for emulating spectral signals."
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
-    "jax>=0.8.0",
-    "matplotlib>=3.10.7",
-    "mpi4py>=4.1.1",
-    "numpy>=2.3.4",
-    "requests>=2.32.5",
-    "ripplegw>=0.0.9",
-    "torch>=2.9.0",
-    "tqdm>=4.67.1",
+    "jax",
+    "jaxlib",
+    "torch",
+]
+
+[build-system]
+requires = ["setuptools>=77.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["astroemu*"]
+
+[project.optional-dependencies]
+dev = [
+    "ruff",
+    "pre-commit",
 ]
 
 [tool.ruff]

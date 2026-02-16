@@ -4,11 +4,11 @@
 |---| ---|
 | Author| Harry Bevins|
 | Version| 0.1.2 |
-| Homepage | https://github.com/htjb/emu |
+| Homepage | https://github.com/htjb/astroemu |
 
 UNDER DEVELOPMENT
 
-`emu` implements a generalized framework for emulating 
+`astroemu` implements a generalized framework for emulating 
 spectral signals
 and is inspired by the [`globalemu`](https://github.com/htjb/globalemu) package.
 
