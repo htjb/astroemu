@@ -1,9 +1,9 @@
 # Next Generation Emulators for Cosmology and Astrophysics
 
-| | |
+| astroemu | Next Generation Emulators |
 |---| ---|
 | Author| Harry Bevins|
-| Version| 0.1.2 |
+| Version| 0.1.3 |
 | Homepage | https://github.com/htjb/astroemu |
 
 UNDER DEVELOPMENT
@@ -11,6 +11,14 @@ UNDER DEVELOPMENT
 `astroemu` implements a generalized framework for emulating 
 spectral signals
 and is inspired by the [`globalemu`](https://github.com/htjb/globalemu) package.
+
+You can pip install the emulator framework with
+
+```bash
+pip install astroemu
+```
+
+although the code is in active development.
 
 The neural network emulators are implemented in JAX and the dataloaders are
 built on top of PyTorch.
@@ -37,6 +45,18 @@ our training data looks like
 For more details see the `globalemu` [paper](https://arxiv.org/abs/2104.04336).
 A paper is in preparation demonstrating applications of this package to a broad 
 range of astrophysical signals.
+
+## Documentation
+
+Docs can be compiled locally with
+
+```
+git clone git@github.com:htjb/astroemu.git
+pip install ".[docs]"
+mkdocs serve
+```
+
+or found on [readthedocs](https://astroemu.readthedocs.io/en/latest/)
 
 ## Contributions
 

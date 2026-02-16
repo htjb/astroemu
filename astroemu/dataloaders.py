@@ -2,9 +2,8 @@
 
 import jax.numpy as jnp
 import torch
-from torch.utils.data import Dataset
-
 from emu.normalisation import NormalisationPipeline
+from torch.utils.data import Dataset
 
 
 def load_spectrum(file: str) -> dict:
