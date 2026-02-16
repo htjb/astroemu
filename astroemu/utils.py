@@ -1,6 +1,6 @@
 """Utility functions for emu package."""
 
-from typing import Iterator
+from collections.abc import Iterator
 
 import jax.numpy as jnp
 
