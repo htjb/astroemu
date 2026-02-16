@@ -1,9 +1,8 @@
 """Data loaders for emu package."""
 
+import jax
 import jax.numpy as jnp
-import torch
 from emu.normalisation import NormalisationPipeline
-from torch.utils.data import Dataset
 
 
 def load_spectrum(file: str) -> dict:
@@ -20,7 +19,7 @@ def load_spectrum(file: str) -> dict:
     return input
 
 
-class SpectrumDataset(Dataset):
+class SpectrumDataset:
     """Dataset for loading spectra from .npz files.
 
     Allows for optional preprocessing via a forward pipeline and
@@ -58,43 +57,72 @@ class SpectrumDataset(Dataset):
         """Return number of files in dataset."""
         return len(self.files)
 
-    def __getitem__(self, idx: int) -> tuple[torch.Tensor, torch.Tensor]:
+    def __getitem__(self, idx: int) -> tuple[jnp.ndarray, jnp.ndarray]:
         """Get spectrum and input parameters for given index.
 
         Args:
             idx (int): Index of the data point.
 
         Returns:
-            tuple[torch.Tensor, torch.Tensor]: Tuple of (spectrum,
+            tuple[jnp.ndarray, jnp.ndarray]: Tuple of (spectrum,
                 input parameters).
         """
         input = load_spectrum(self.files[idx])
-        x = torch.tensor(input[self.x])
-        y = torch.tensor(input[self.y])
+        x = jnp.array(input[self.x])
+        y = jnp.array(input[self.y])
         if self.varied_input:
-            input = torch.tensor(
+            input = jnp.array(
                 [input[k].item() for k in self.varied_input],
-                dtype=torch.float32,
+                dtype=jnp.float32,
             )
         else:
-            input = torch.tensor(
+            input = jnp.array(
                 [
                     input[k].item()
                     for k in sorted(input.keys())
                     if k not in [self.x, self.y]
                 ],
-                dtype=torch.float32,
+                dtype=jnp.float32,
             )
-        input = torch.tile(
+        input = jnp.tile(
             input, (y.shape[0], 1)
         )  # Ensure input shape matches spec
-        input = torch.cat(
+        input = jnp.concatenate(
             [x[:, None], input], axis=1
         )  # Concatenate wavelength with parameters
         if self.forward_pipeline:
             return self.forward_pipeline.forward(y, input)
         else:
             return y, input
+
+    def get_batch_iterator(
+        self,
+        batch_size: int,
+        shuffle: bool = True,
+        key: jax.Array | None = None,
+    ):
+        """Yield batches of (spec, input) as jnp.ndarray.
+
+        Args:
+            batch_size (int): Number of samples per batch.
+            shuffle (bool): Whether to shuffle indices. Defaults to True.
+            key (jax.Array | None): JAX PRNG key for shuffling.
+                Required when shuffle=True. Defaults to None.
+
+        Yields:
+            tuple[jnp.ndarray, jnp.ndarray]: Batches of (spec, input).
+        """
+        n = len(self)
+        indices = jnp.arange(n)
+        if shuffle:
+            if key is None:
+                key = jax.random.PRNGKey(0)
+            indices = jax.random.permutation(key, indices)
+
+        for start in range(0, n, batch_size):
+            batch_indices = indices[start: start + batch_size]
+            specs, inputs = zip(*[self[int(i)] for i in batch_indices])
+            yield jnp.stack(specs), jnp.stack(inputs)
 
 
 class NormalizeSpectrumDataset(SpectrumDataset):
@@ -136,14 +164,14 @@ class NormalizeSpectrumDataset(SpectrumDataset):
         )
         self.normalize_pipeline = forward_pipeline
 
-    def __getitem__(self, idx: int) -> tuple[torch.Tensor, torch.Tensor]:
+    def __getitem__(self, idx: int) -> tuple[jnp.ndarray, jnp.ndarray]:
         """Get normalized spectrum and input parameters for given index.
 
         Args:
             idx (int): Index of the data point.
 
         Returns:
-            tuple[torch.Tensor, torch.Tensor]: Tuple of (normalized spectrum,
+            tuple[jnp.ndarray, jnp.ndarray]: Tuple of (normalized spectrum,
                 input parameters).
         """
         y, input = super().__getitem__(idx)

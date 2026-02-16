@@ -1,20 +1,20 @@
 """Normalisation pipelines for emu package."""
 
-import torch
+import jax.numpy as jnp
 
 
 class NormalisationPipeline:
     """Base class for normalisation pipelines."""
 
     def forward(
-        self, y: torch.Tensor, x: torch.Tensor | None = None
-    ) -> tuple[torch.Tensor, torch.Tensor | None]:
+        self, y: jnp.ndarray, x: jnp.ndarray | None = None
+    ) -> tuple[jnp.ndarray, jnp.ndarray | None]:
         """Apply forward transformation."""
         raise NotImplementedError
 
     def backward(
-        self, y: torch.Tensor, x: torch.Tensor | None = None
-    ) -> tuple[torch.Tensor, torch.Tensor | None]:
+        self, y: jnp.ndarray, x: jnp.ndarray | None = None
+    ) -> tuple[jnp.ndarray, jnp.ndarray | None]:
         """Apply backward transformation."""
         raise NotImplementedError
 
@@ -24,10 +24,10 @@ class standardise(NormalisationPipeline):
 
     def __init__(
         self,
-        y_mean: torch.Tensor,
-        y_std: torch.Tensor,
-        x_mean: torch.Tensor,
-        x_std: torch.Tensor,
+        y_mean: jnp.ndarray,
+        y_std: jnp.ndarray,
+        x_mean: jnp.ndarray,
+        x_std: jnp.ndarray,
     ) -> None:
         """Standardises the spectrum and input parameters.
 
@@ -48,13 +48,13 @@ class standardise(NormalisationPipeline):
         self.x_std = x_std
 
     def forward(
-        self, y: torch.Tensor, x: torch.Tensor | None = None
-    ) -> tuple[torch.Tensor, torch.Tensor | None]:
+        self, y: jnp.ndarray, x: jnp.ndarray | None = None
+    ) -> tuple[jnp.ndarray, jnp.ndarray | None]:
         """Standardise the spectrum and input parameters.
 
         Args:
-            y (torch.Tensor): Spectrum tensor.
-            x (torch.Tensor, optional): Input parameters tensor.
+            y (jnp.ndarray): Spectrum array.
+            x (jnp.ndarray, optional): Input parameters array.
             Defaults to None.
 
         Returns:
@@ -66,13 +66,13 @@ class standardise(NormalisationPipeline):
         return y, x
 
     def backward(
-        self, y: torch.Tensor, x: torch.Tensor | None = None
-    ) -> tuple[torch.Tensor, torch.Tensor | None]:
+        self, y: jnp.ndarray, x: jnp.ndarray | None = None
+    ) -> tuple[jnp.ndarray, jnp.ndarray | None]:
         """Destandardise the spectrum and input parameters.
 
         Args:
-            y (torch.Tensor): Standardised spectrum tensor.
-            x (torch.Tensor, optional): Standardised input parameters tensor.
+            y (jnp.ndarray): Standardised spectrum array.
+            x (jnp.ndarray, optional): Standardised input parameters array.
                 Defaults to None.
 
         Returns:
@@ -108,13 +108,13 @@ class log_base_10(NormalisationPipeline):
         self.eps = eps
 
     def forward(
-        self, y: torch.Tensor, x: torch.Tensor | None = None
-    ) -> tuple[torch.Tensor, torch.Tensor | None]:
+        self, y: jnp.ndarray, x: jnp.ndarray | None = None
+    ) -> tuple[jnp.ndarray, jnp.ndarray | None]:
         """Apply log10 transformation to selected columns.
 
         Args:
-            y (torch.Tensor): Spectrum tensor.
-            x (torch.Tensor, optional): Input parameters tensor.
+            y (jnp.ndarray): Spectrum array.
+            x (jnp.ndarray, optional): Input parameters array.
                 Defaults to None.
 
         Returns:
@@ -123,26 +123,26 @@ class log_base_10(NormalisationPipeline):
         if x is not None:
             if self.xselector is not None:
                 for i in self.xselector:
-                    x[..., i] = torch.log10(x[..., i] + self.eps)
+                    x = x.at[..., i].set(jnp.log10(x[..., i] + self.eps))
             else:
-                x = torch.log10(x + self.eps)
+                x = jnp.log10(x + self.eps)
 
         if self.yselector is not None:
             for i in self.yselector:
-                y[..., i] = torch.log10(y[..., i] + self.eps)
+                y = y.at[..., i].set(jnp.log10(y[..., i] + self.eps))
         else:
-            y = torch.log10(y + self.eps)
+            y = jnp.log10(y + self.eps)
 
         return y, x
 
     def backward(
-        self, y: torch.Tensor, x: torch.Tensor | None = None
-    ) -> tuple[torch.Tensor, torch.Tensor | None]:
+        self, y: jnp.ndarray, x: jnp.ndarray | None = None
+    ) -> tuple[jnp.ndarray, jnp.ndarray | None]:
         """Apply inverse log10 transformation to selected columns.
 
         Args:
-            y (torch.Tensor): Transformed spectrum tensor.
-            x (torch.Tensor, optional): Transformed input parameters tensor.
+            y (jnp.ndarray): Transformed spectrum array.
+            x (jnp.ndarray, optional): Transformed input parameters array.
                 Defaults to None.
 
         Returns:
@@ -151,14 +151,16 @@ class log_base_10(NormalisationPipeline):
         if x is not None:
             if self.xselector is not None:
                 for i in self.xselector:
-                    x[..., i] = torch.pow(10, x[..., i]) - self.eps
+                    x = x.at[..., i].set(
+                        jnp.power(10, x[..., i]) - self.eps
+                    )
             else:
-                x = torch.pow(10, x) - self.eps
+                x = jnp.power(10, x) - self.eps
 
         if self.yselector is not None:
             for i in self.yselector:
-                y[..., i] = torch.pow(10, y[..., i]) - self.eps
+                y = y.at[..., i].set(jnp.power(10, y[..., i]) - self.eps)
         else:
-            y = torch.pow(10, y) - self.eps
+            y = jnp.power(10, y) - self.eps
 
         return y, x

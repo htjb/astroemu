@@ -1,15 +1,17 @@
 """Utility functions for emu package."""
 
-import torch
+from typing import Iterator
+
+import jax.numpy as jnp
 
 
 def compute_mean_std(
-    loader: torch.utils.data.DataLoader,
-) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+    loader: Iterator[tuple[jnp.ndarray, jnp.ndarray]],
+) -> tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray]:
     """Memory safe mean and std computation.
 
     Args:
-        loader: DataLoader returning (spec, input) where:
+        loader: Iterable yielding (spec, input) where:
             - spec: [batch_size, 5000]
             - input: [batch_size, 5000, N]
 
@@ -28,56 +30,44 @@ def compute_mean_std(
     n_input_samples = 0
 
     for spec, input_data in loader:
-        batch_size = spec.size(0)
+        batch_size = spec.shape[0]
 
         # === Process spec ===
         # spec shape: [batch_size, 5000] -> we want stats across batch dim
         if spec_sum is None:
-            spec_sum = torch.zeros(
-                spec.size(1), dtype=spec.dtype, device=spec.device
-            )
-            spec_sum_sq = torch.zeros(
-                spec.size(1), dtype=spec.dtype, device=spec.device
-            )
+            spec_sum = jnp.zeros(spec.shape[1], dtype=spec.dtype)
+            spec_sum_sq = jnp.zeros(spec.shape[1], dtype=spec.dtype)
 
-        spec_sum += spec.sum(dim=0)  # sum across batch
-        spec_sum_sq += (spec**2).sum(dim=0)  # sum of squares across batch
+        spec_sum = spec_sum + spec.sum(axis=0)  # sum across batch
+        spec_sum_sq = spec_sum_sq + (spec**2).sum(axis=0)  # sum of squares across batch
         n_spec_samples += batch_size
 
         # === Process input ===
         # input shape: [batch_size, 5000, N] -> we want stats across
         # batch and 5000 dims
-        input_flat = input_data.view(
-            -1, input_data.size(-1)
+        input_flat = input_data.reshape(
+            -1, input_data.shape[-1]
         )  # [batch_size * 5000, N]
 
         if input_sum is None:
-            input_sum = torch.zeros(
-                input_data.size(-1),
-                dtype=input_data.dtype,
-                device=input_data.device,
-            )
-            input_sum_sq = torch.zeros(
-                input_data.size(-1),
-                dtype=input_data.dtype,
-                device=input_data.device,
-            )
+            input_sum = jnp.zeros(input_data.shape[-1], dtype=input_data.dtype)
+            input_sum_sq = jnp.zeros(input_data.shape[-1], dtype=input_data.dtype)
 
-        input_sum += input_flat.sum(
-            dim=0
+        input_sum = input_sum + input_flat.sum(
+            axis=0
         )  # sum across flattened batch*5000 dim
-        input_sum_sq += (input_flat**2).sum(dim=0)  # sum of squares
-        n_input_samples += input_flat.size(0)  # batch_size * 5000
+        input_sum_sq = input_sum_sq + (input_flat**2).sum(axis=0)  # sum of squares
+        n_input_samples += input_flat.shape[0]  # batch_size * 5000
 
     # Compute means and stds
     mean_spec = spec_sum / n_spec_samples
     var_spec = (spec_sum_sq / n_spec_samples) - (mean_spec**2)
-    std_spec = torch.where(var_spec <= 1e-3, 1, torch.sqrt(var_spec))
+    std_spec = jnp.where(var_spec <= 1e-3, 1, jnp.sqrt(var_spec))
 
     mean_input = input_sum / n_input_samples
     var_input = (input_sum_sq / n_input_samples) - (mean_input**2)
-    std_input = torch.sqrt(
-        torch.clamp(var_input, min=1e-8)
-    )  # clamp for numerical stability
+    std_input = jnp.sqrt(
+        jnp.clip(var_input, a_min=1e-8)
+    )  # clip for numerical stability
 
     return mean_spec, std_spec, mean_input, std_input
