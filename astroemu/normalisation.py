@@ -1,5 +1,7 @@
 """Normalisation pipelines for emu package."""
 
+import warnings
+
 import jax.numpy as jnp
 
 
@@ -91,6 +93,8 @@ class log_base_10(NormalisationPipeline):
         self,
         yselector: list[int] | None = None,
         xselector: list[int] | None = None,
+        log_all_y: bool = False,
+        log_all_x: bool = False,
         eps: float = 1e-15,
     ) -> None:
         """Logarithm base 10 transformation for numerical stability.
@@ -99,68 +103,96 @@ class log_base_10(NormalisationPipeline):
             yselector (list[int] | None): columns of the spectrum to
                 apply log transformation.
                 Assumes that the spectra are in the last dimension.
+                None returns y without any transformation.
             xselector (list[int] | None): columns of the input parameters to
                 apply log transformation.
+                Assumes that the input parameters are in the last dimension.
+                None returns x without any transformation.
+            log_all_y (bool): If True, apply log transformation to all
+                columns of the spectrum. Overrides yselector if True.
+            log_all_x (bool): If True, apply log transformation to all
+                columns of the input parameters. Overrides xselector if True.
             eps (float): small value to add to avoid log(0).
         """
         self.yselector = yselector
         self.xselector = xselector
+        self.log_all_y = log_all_y
+        self.log_all_x = log_all_x
         self.eps = eps
 
+        if log_all_y and yselector is not None:
+            warnings.warn("log_all_y is True, overriding yselector.")
+        
+        if log_all_x and xselector is not None:
+            warnings.warn("log_all_x is True, overriding xselector.")
+
+    @staticmethod
+    def _apply_log10(
+        arr: jnp.ndarray, selector: list[int] | None, eps: float
+    ) -> jnp.ndarray:
+        if selector is None:
+            return arr  # skip
+        mask = jnp.zeros(arr.shape[-1], dtype=bool).at[selector].set(True)
+        return jnp.where(mask, jnp.log10(arr + eps), arr)
+
     def forward(
-        self, y: jnp.ndarray, x: jnp.ndarray | None = None
-    ) -> tuple[jnp.ndarray, jnp.ndarray | None]:
+        self, y: jnp.ndarray, x: jnp.ndarray
+    ) -> tuple[jnp.ndarray, jnp.ndarray]:
         """Apply log10 transformation to selected columns.
 
         Args:
             y (jnp.ndarray): Spectrum array.
-            x (jnp.ndarray, optional): Input parameters array.
+            x (jnp.ndarray): Input parameters array.
                 Defaults to None.
 
         Returns:
             tuple: Transformed spectrum and input parameters.
         """
-        if x is not None:
-            if self.xselector is not None:
-                for i in self.xselector:
-                    x = x.at[..., i].set(jnp.log10(x[..., i] + self.eps))
-            else:
-                x = jnp.log10(x + self.eps)
+        if self.log_all_x:
+            x = jnp.log10(x + self.eps)
+        elif self.xselector is not None:
+            mask = (
+                jnp.zeros(x.shape[-1], dtype=bool).at[self.xselector].set(True)
+            )
+            x = jnp.where(mask, jnp.log10(x + self.eps), x)
 
-        if self.yselector is not None:
-            for i in self.yselector:
-                y = y.at[..., i].set(jnp.log10(y[..., i] + self.eps))
-        else:
+        if self.log_all_y:
             y = jnp.log10(y + self.eps)
+        elif self.yselector is not None:
+            mask = (
+                jnp.zeros(y.shape[-1], dtype=bool).at[self.yselector].set(True)
+            )
+            y = jnp.where(mask, jnp.log10(y + self.eps), y)
 
         return y, x
 
     def backward(
-        self, y: jnp.ndarray, x: jnp.ndarray | None = None
-    ) -> tuple[jnp.ndarray, jnp.ndarray | None]:
+        self, y: jnp.ndarray, x: jnp.ndarray
+    ) -> tuple[jnp.ndarray, jnp.ndarray]:
         """Apply inverse log10 transformation to selected columns.
 
         Args:
             y (jnp.ndarray): Transformed spectrum array.
-            x (jnp.ndarray, optional): Transformed input parameters array.
+            x (jnp.ndarray): Transformed input parameters array.
                 Defaults to None.
 
         Returns:
             tuple: Inverse transformed spectrum and input parameters.
         """
-        if x is not None:
-            if self.xselector is not None:
-                for i in self.xselector:
-                    x = x.at[..., i].set(
-                        jnp.power(10, x[..., i]) - self.eps
-                    )
-            else:
-                x = jnp.power(10, x) - self.eps
+        if self.log_all_x:
+            x = 10**x - self.eps
+        elif self.xselector is not None:
+            mask = (
+                jnp.zeros(x.shape[-1], dtype=bool).at[self.xselector].set(True)
+            )
+            x = jnp.where(mask, 10**x - self.eps, x)
 
-        if self.yselector is not None:
-            for i in self.yselector:
-                y = y.at[..., i].set(jnp.power(10, y[..., i]) - self.eps)
-        else:
-            y = jnp.power(10, y) - self.eps
+        if self.log_all_y:
+            y = 10**y - self.eps
+        elif self.yselector is not None:
+            mask = (
+                jnp.zeros(y.shape[-1], dtype=bool).at[self.yselector].set(True)
+            )
+            y = jnp.where(mask, 10**y - self.eps, y)
 
         return y, x
