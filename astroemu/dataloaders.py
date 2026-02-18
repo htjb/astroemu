@@ -117,7 +117,16 @@ class SpectrumDataset:
         shuffle: bool = True,
         key: jax.Array | None = None,
     ) -> Generator:
-        """Yield batches of (spec, input) as jnp.ndarray.
+        """Yield batches of spectra and inputs as jnp.ndarray.
+
+        When tiling=True, yields (specs_flat, concat_inputs) where
+        specs_flat has shape (batch * len_x,) and concat_inputs has shape
+        (batch * len_x, n_params + 1) with x prepended as the first column.
+
+        When tiling=False, yields (specs, x, inputs) with shapes
+        (batch, len_x), (batch, len_x), and (batch, n_params) respectively.
+        This mode is suitable for computing rolling statistics via
+        astroemu.utils.compute_mean_std.
 
         Args:
             batch_size (int): Number of samples per batch.
@@ -126,7 +135,10 @@ class SpectrumDataset:
                 Required when shuffle=True. Defaults to None.
 
         Yields:
-            tuple[jnp.ndarray, jnp.ndarray]: Batches of (spec, input).
+            tiling=True:  tuple[jnp.ndarray, jnp.ndarray]
+                (specs_flat, concat_inputs)
+            tiling=False: tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]
+                (specs, x, inputs)
         """
         n = len(self)
         indices = jnp.arange(n)
@@ -138,20 +150,19 @@ class SpectrumDataset:
         for start in range(0, n, batch_size):
             batch_indices = indices[start : start + batch_size]
             specs, x, inputs = zip(*[self[int(i)] for i in batch_indices])
-            specs, inputs, x = jnp.stack(specs), jnp.stack(inputs), jnp.stack(x)
+            specs = jnp.stack(specs)
+            x = jnp.stack(x)
+            inputs = jnp.stack(inputs)
 
             for pipeline in self.forward_pipeline:
-                specs, inputs = pipeline.forward(specs, inputs)
+                specs, x, inputs = pipeline.forward(specs, x, inputs)
 
             if self.tiling:
-                # the tiling magic
-                inputs = jnp.tile(
-                    inputs, (specs.shape[-1], 1)
-                )  # Ensure input shape matches spec
+                # tile params to match each x point, then prepend x column
+                inputs = jnp.tile(inputs, (specs.shape[-1], 1))
                 inputs = jnp.concatenate(
                     [x.flatten()[:, None], inputs], axis=-1
                 )
-
-                yield  specs.flatten(), inputs
+                yield specs.flatten(), inputs
             else:
-                yield specs, inputs
+                yield specs, x, inputs

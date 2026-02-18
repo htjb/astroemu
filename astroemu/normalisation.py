@@ -9,14 +9,20 @@ class NormalisationPipeline:
     """Base class for normalisation pipelines."""
 
     def forward(
-        self, y: jnp.ndarray, x: jnp.ndarray
-    ) -> tuple[jnp.ndarray, jnp.ndarray]:
+        self,
+        _y: jnp.ndarray,
+        _x: jnp.ndarray,
+        _params: jnp.ndarray,
+    ) -> tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
         """Apply forward transformation."""
         raise NotImplementedError
 
     def backward(
-        self, y: jnp.ndarray, x: jnp.ndarray
-    ) -> tuple[jnp.ndarray, jnp.ndarray]:
+        self,
+        _y: jnp.ndarray,
+        _x: jnp.ndarray,
+        _params: jnp.ndarray,
+    ) -> tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
         """Apply backward transformation."""
         raise NotImplementedError
 
@@ -30,70 +36,90 @@ class standardise(NormalisationPipeline):
         y_std: jnp.ndarray,
         x_mean: jnp.ndarray,
         x_std: jnp.ndarray,
-        standardise_x: bool = False,
+        params_mean: jnp.ndarray,
+        params_std: jnp.ndarray,
         standardise_y: bool = False,
+        standardise_x: bool = False,
+        standardise_params: bool = False,
     ) -> None:
-        """Standardises the spectrum and input parameters.
+        """Standardises the spectrum, independent variable, and parameters.
 
         Args:
-            y_mean (float): Mean of the spectrum for standardisation.
-            y_std (float): Standard deviation of the spectrum for
-                standardisation.
-            x_mean (float): Mean of the input parameters for standardisation.
-            x_std (float): Standard deviation of the input parameters
-                for standardisation.
-            standardise_x (bool): Whether to standardise the input
-                parameters. Defaults to False.
+            y_mean (jnp.ndarray): Mean of the spectrum.
+            y_std (jnp.ndarray): Standard deviation of the spectrum.
+            x_mean (float): Mean of the independent variable.
+            x_std (float): Standard deviation of the independent variable.
+            params_mean (jnp.ndarray): Mean of the input parameters.
+            params_std (jnp.ndarray): Standard deviation of the input
+                parameters.
             standardise_y (bool): Whether to standardise the spectrum.
                 Defaults to False.
-
-        Returns:
-            tuple: Standardised spectrum and input parameters.
+            standardise_x (bool): Whether to standardise the independent
+                variable. Defaults to False.
+            standardise_params (bool): Whether to standardise the input
+                parameters. Defaults to False.
         """
         self.y_mean = y_mean
         self.y_std = y_std
         self.x_mean = x_mean
         self.x_std = x_std
-        self.standardise_x = standardise_x
+        self.params_mean = params_mean
+        self.params_std = params_std
         self.standardise_y = standardise_y
+        self.standardise_x = standardise_x
+        self.standardise_params = standardise_params
 
     def forward(
-        self, y: jnp.ndarray, x: jnp.ndarray
-    ) -> tuple[jnp.ndarray, jnp.ndarray]:
-        """Standardise the spectrum and input parameters.
+        self,
+        y: jnp.ndarray,
+        x: jnp.ndarray,
+        params: jnp.ndarray,
+    ) -> tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
+        """Standardise spectrum, independent variable, and input parameters.
 
         Args:
-            y (jnp.ndarray): Spectrum array.
-            x (jnp.ndarray): Input parameters array.
+            y (jnp.ndarray): Spectrum array, shape (batch, len_x).
+            x (jnp.ndarray): Independent variable array, shape (batch, len_x).
+            params (jnp.ndarray): Input parameters array, shape
+                (batch, n_params).
 
         Returns:
-            tuple: Standardised spectrum and input parameters.
+            tuple: Standardised spectrum, independent variable, and parameters.
         """
         if self.standardise_y:
             y = (y - self.y_mean) / self.y_std
-
         if self.standardise_x:
             x = (x - self.x_mean) / self.x_std
-        return y, x
+        if self.standardise_params:
+            params = (params - self.params_mean) / self.params_std
+        return y, x, params
 
     def backward(
-        self, y: jnp.ndarray, x: jnp.ndarray
-    ) -> tuple[jnp.ndarray, jnp.ndarray]:
-        """Destandardise the spectrum and input parameters.
+        self,
+        y: jnp.ndarray,
+        x: jnp.ndarray,
+        params: jnp.ndarray,
+    ) -> tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
+        """Destandardise spectrum, independent variable, and input parameters.
 
         Args:
-            y (jnp.ndarray): Standardised spectrum array.
-            x (jnp.ndarray): Standardised input parameters array.
+            y (jnp.ndarray): Standardised spectrum array, shape (batch, len_x).
+            x (jnp.ndarray): Standardised independent variable, shape
+                (batch, len_x).
+            params (jnp.ndarray): Standardised input parameters, shape
+                (batch, n_params).
 
         Returns:
-            tuple: Destandardised spectrum and input parameters.
+            tuple: Destandardised spectrum, independent variable, and
+                parameters.
         """
         if self.standardise_y:
             y = y * self.y_std + self.y_mean
-
         if self.standardise_x:
             x = x * self.x_std + self.x_mean
-        return y, x
+        if self.standardise_params:
+            params = params * self.params_std + self.params_mean
+        return y, x, params
 
 
 class log_base_10(NormalisationPipeline):
@@ -101,71 +127,67 @@ class log_base_10(NormalisationPipeline):
 
     def __init__(
         self,
-        yselector: list[int] | None = None,
-        xselector: list[int] | None = None,
+        yselector: list[int] | jnp.ndarray | None = None,
+        xselector: list[int] | jnp.ndarray | None = None,
+        params_selector: list[int] | jnp.ndarray | None = None,
         log_all_y: bool = False,
         log_all_x: bool = False,
+        log_all_params: bool = False,
         eps: float = 1e-15,
     ) -> None:
         """Logarithm base 10 transformation for numerical stability.
 
         Args:
-            yselector (list[int] | None): columns of the spectrum to
-                apply log transformation.
-                Assumes that the spectra are in the last dimension.
+            yselector (list[int] | None): columns of the spectrum to apply
+                log transformation. Assumes spectra are in the last dimension.
                 None returns y without any transformation.
-            xselector (list[int] | None): columns of the input parameters to
-                apply log transformation.
-                Assumes that the input parameters are in the last dimension.
-                None returns x without any transformation.
-            log_all_y (bool): If True, apply log transformation to all
-                columns of the spectrum. Overrides yselector if True.
-            log_all_x (bool): If True, apply log transformation to all
-                columns of the input parameters. Overrides xselector if True.
+            xselector (list[int] | None): indices of the independent variable
+                to apply log transformation. None returns x unchanged.
+            params_selector (list[int] | None): columns of the input parameters
+                to apply log transformation. Assumes parameters are in the last
+                dimension. None returns params without any transformation.
+            log_all_y (bool): If True, apply log transformation to all columns
+                of the spectrum. Overrides yselector if True.
+            log_all_x (bool): If True, apply log transformation to all elements
+                of the independent variable. Overrides xselector if True.
+            log_all_params (bool): If True, apply log transformation to all
+                columns of the input parameters. Overrides params_selector.
             eps (float): small value to add to avoid log(0).
         """
         self.yselector = yselector
         self.xselector = xselector
+        self.params_selector = params_selector
         self.log_all_y = log_all_y
         self.log_all_x = log_all_x
+        self.log_all_params = log_all_params
         self.eps = eps
 
         if log_all_y and yselector is not None:
             warnings.warn("log_all_y is True, overriding yselector.")
-        
+
         if log_all_x and xselector is not None:
             warnings.warn("log_all_x is True, overriding xselector.")
 
-    @staticmethod
-    def _apply_log10(
-        arr: jnp.ndarray, selector: list[int] | None, eps: float
-    ) -> jnp.ndarray:
-        if selector is None:
-            return arr  # skip
-        mask = jnp.zeros(arr.shape[-1], dtype=bool).at[selector].set(True)
-        return jnp.where(mask, jnp.log10(arr + eps), arr)
+        if log_all_params and params_selector is not None:
+            warnings.warn("log_all_params is True, overriding params_selector.")
 
     def forward(
-        self, y: jnp.ndarray, x: jnp.ndarray
-    ) -> tuple[jnp.ndarray, jnp.ndarray]:
+        self,
+        y: jnp.ndarray,
+        x: jnp.ndarray,
+        params: jnp.ndarray,
+    ) -> tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
         """Apply log10 transformation to selected columns.
 
         Args:
-            y (jnp.ndarray): Spectrum array.
-            x (jnp.ndarray): Input parameters array.
-                Defaults to None.
+            y (jnp.ndarray): Spectrum array, shape (batch, len_x).
+            x (jnp.ndarray): Independent variable array, shape (batch, len_x).
+            params (jnp.ndarray): Input parameters array, shape
+                (batch, n_params).
 
         Returns:
-            tuple: Transformed spectrum and input parameters.
+            tuple: Transformed spectrum, independent variable, and parameters.
         """
-        if self.log_all_x:
-            x = jnp.log10(x + self.eps)
-        elif self.xselector is not None:
-            mask = (
-                jnp.zeros(x.shape[-1], dtype=bool).at[self.xselector].set(True)
-            )
-            x = jnp.where(mask, jnp.log10(x + self.eps), x)
-
         if self.log_all_y:
             y = jnp.log10(y + self.eps)
         elif self.yselector is not None:
@@ -174,29 +196,45 @@ class log_base_10(NormalisationPipeline):
             )
             y = jnp.where(mask, jnp.log10(y + self.eps), y)
 
-        return y, x
-
-    def backward(
-        self, y: jnp.ndarray, x: jnp.ndarray
-    ) -> tuple[jnp.ndarray, jnp.ndarray]:
-        """Apply inverse log10 transformation to selected columns.
-
-        Args:
-            y (jnp.ndarray): Transformed spectrum array.
-            x (jnp.ndarray): Transformed input parameters array.
-                Defaults to None.
-
-        Returns:
-            tuple: Inverse transformed spectrum and input parameters.
-        """
         if self.log_all_x:
-            x = 10**x - self.eps
+            x = jnp.log10(x + self.eps)
         elif self.xselector is not None:
             mask = (
                 jnp.zeros(x.shape[-1], dtype=bool).at[self.xselector].set(True)
             )
-            x = jnp.where(mask, 10**x - self.eps, x)
+            x = jnp.where(mask, jnp.log10(x + self.eps), x)
 
+        if self.log_all_params:
+            params = jnp.log10(params + self.eps)
+        elif self.params_selector is not None:
+            mask = (
+                jnp.zeros(params.shape[-1], dtype=bool)
+                .at[self.params_selector]
+                .set(True)
+            )
+            params = jnp.where(mask, jnp.log10(params + self.eps), params)
+
+        return y, x, params
+
+    def backward(
+        self,
+        y: jnp.ndarray,
+        x: jnp.ndarray,
+        params: jnp.ndarray,
+    ) -> tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
+        """Apply inverse log10 transformation to selected columns.
+
+        Args:
+            y (jnp.ndarray): Transformed spectrum array, shape (batch, len_x).
+            x (jnp.ndarray): Transformed independent variable, shape
+                (batch, len_x).
+            params (jnp.ndarray): Transformed input parameters, shape
+                (batch, n_params).
+
+        Returns:
+            tuple: Inverse transformed spectrum, independent variable, and
+                parameters.
+        """
         if self.log_all_y:
             y = 10**y - self.eps
         elif self.yselector is not None:
@@ -205,4 +243,22 @@ class log_base_10(NormalisationPipeline):
             )
             y = jnp.where(mask, 10**y - self.eps, y)
 
-        return y, x
+        if self.log_all_x:
+            x = 10**x - self.eps
+        elif self.xselector is not None:
+            mask = (
+                jnp.zeros(x.shape[-1], dtype=bool).at[self.xselector].set(True)
+            )
+            x = jnp.where(mask, 10**x - self.eps, x)
+
+        if self.log_all_params:
+            params = 10**params - self.eps
+        elif self.params_selector is not None:
+            mask = (
+                jnp.zeros(params.shape[-1], dtype=bool)
+                .at[self.params_selector]
+                .set(True)
+            )
+            params = jnp.where(mask, 10**params - self.eps, params)
+
+        return y, x, params
