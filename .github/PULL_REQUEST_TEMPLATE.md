@@ -9,4 +9,4 @@ Fixes # (issue)
 - [ ] I have performed a self-review of my own code
 - [ ] New and existing unit tests pass locally with my changes (`python -m pytest`)
 - [ ] I have added tests that prove my fix is effective or that my feature works
-- [ ] I have appropriately incremented the [semantic version number](https://semver.org/) in both README.md and emu/_version.py
+- [ ] I have appropriately incremented the [semantic version number](https://semver.org/) in both README.md and astroemu/_version.py
