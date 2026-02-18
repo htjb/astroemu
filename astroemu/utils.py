@@ -32,8 +32,6 @@ def compute_mean_std(
     for spec, input_data in loader:
         batch_size = spec.shape[0]
 
-        # === Process spec ===
-        # spec shape: [batch_size, 5000] -> we want stats across batch dim
         if spec_sum is None:
             spec_sum = jnp.zeros(spec.shape[1], dtype=spec.dtype)
             spec_sum_sq = jnp.zeros(spec.shape[1], dtype=spec.dtype)
