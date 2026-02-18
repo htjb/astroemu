@@ -1,5 +1,7 @@
 """Data loaders for emu package."""
 
+from collections.abc import Generator
+
 import jax
 import jax.numpy as jnp
 from astroemu.normalisation import NormalisationPipeline
@@ -37,6 +39,7 @@ class SpectrumDataset:
         | list[NormalisationPipeline]
         | None = None,
         variable_input: list[str] | str | None = None,
+        tiling: bool = True,
     ) -> None:
         """Initialize SpectrumDataset.
 
@@ -50,16 +53,28 @@ class SpectrumDataset:
                 for variable input parameters.
                 If None, all parameters except x and y are used.
                 Defaults to None.
+            tiling (bool, optional): Whether to tile input/output parameters.
+                This is True by default since this is what makes
+                astroemu (and globaemu) tick. However, you might want 
+                to turn it off if you want to use the dataset for 
+                something other than
+                emulation or if you want to calcualte things like 
+                rolling averages using astroemu.utils.compute_mean_std. Note
+                normalisation is applied before tiling.
+                Defaults to True.
         """
         self.files = files
         self.varied_input = variable_input
         self.forward_pipeline = (
-            forward_pipeline if isinstance(forward_pipeline, list) 
-            else [forward_pipeline] if forward_pipeline is not None 
+            forward_pipeline
+            if isinstance(forward_pipeline, list)
+            else [forward_pipeline]
+            if forward_pipeline is not None
             else []
         )
         self.x = x
         self.y = y
+        self.tiling = tiling
 
     def __len__(self) -> int:
         """Return number of files in dataset."""
@@ -79,36 +94,29 @@ class SpectrumDataset:
         x = jnp.array(input[self.x])
         y = jnp.array(input[self.y])
         if self.varied_input:
-            input = jnp.array(
-                [input[k].item() for k in self.varied_input],
-                dtype=jnp.float32,
-            )
+            input = [input[k].item() for k in self.varied_input]
         else:
-            input = jnp.array(
-                [
-                    input[k].item()
-                    for k in sorted(input.keys())
-                    if k not in [self.x, self.y]
-                ],
-                dtype=jnp.float32,
-            )
-        input = jnp.tile(
-            input, (y.shape[0], 1)
-        )  # Ensure input shape matches spec
-        input = jnp.concatenate(
-            [x[:, None], input], axis=1
-        )  # Concatenate wavelength with parameters
-        for pipeline in self.forward_pipeline:
-            y, input = pipeline.forward(y, input)
-        
-        return y, input
+            input = [
+                input[k].item()
+                for k in sorted(input.keys())
+                if k not in [self.x, self.y]
+            ]
+
+        # combine multiple input dictionaries into one if necessary
+        if len(input) > 1:
+            if type(input[0]) is dict:
+                input = {k: v for d in input for k, v in d.items()}
+
+        input = jnp.array(list(input.values()), dtype=jnp.float32)
+
+        return y, x, input
 
     def get_batch_iterator(
         self,
         batch_size: int,
         shuffle: bool = True,
         key: jax.Array | None = None,
-    ):
+    ) -> Generator:
         """Yield batches of (spec, input) as jnp.ndarray.
 
         Args:
@@ -129,5 +137,21 @@ class SpectrumDataset:
 
         for start in range(0, n, batch_size):
             batch_indices = indices[start : start + batch_size]
-            specs, inputs = zip(*[self[int(i)] for i in batch_indices])
-            yield jnp.stack(specs), jnp.stack(inputs)
+            specs, x, inputs = zip(*[self[int(i)] for i in batch_indices])
+            specs, inputs, x = jnp.stack(specs), jnp.stack(inputs), jnp.stack(x)
+
+            for pipeline in self.forward_pipeline:
+                specs, inputs = pipeline.forward(specs, inputs)
+
+            if self.tiling:
+                # the tiling magic
+                inputs = jnp.tile(
+                    inputs, (specs.shape[-1], 1)
+                )  # Ensure input shape matches spec
+                inputs = jnp.concatenate(
+                    [x.flatten()[:, None], inputs], axis=-1
+                )
+
+                yield  specs.flatten(), inputs
+            else:
+                yield specs, inputs
