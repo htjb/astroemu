@@ -9,14 +9,14 @@ class NormalisationPipeline:
     """Base class for normalisation pipelines."""
 
     def forward(
-        self, y: jnp.ndarray, x: jnp.ndarray | None = None
-    ) -> tuple[jnp.ndarray, jnp.ndarray | None]:
+        self, y: jnp.ndarray, x: jnp.ndarray
+    ) -> tuple[jnp.ndarray, jnp.ndarray]:
         """Apply forward transformation."""
         raise NotImplementedError
 
     def backward(
-        self, y: jnp.ndarray, x: jnp.ndarray | None = None
-    ) -> tuple[jnp.ndarray, jnp.ndarray | None]:
+        self, y: jnp.ndarray, x: jnp.ndarray
+    ) -> tuple[jnp.ndarray, jnp.ndarray]:
         """Apply backward transformation."""
         raise NotImplementedError
 
@@ -30,6 +30,8 @@ class standardise(NormalisationPipeline):
         y_std: jnp.ndarray,
         x_mean: jnp.ndarray,
         x_std: jnp.ndarray,
+        standardise_x: bool = False,
+        standardise_y: bool = False,
     ) -> None:
         """Standardises the spectrum and input parameters.
 
@@ -40,6 +42,10 @@ class standardise(NormalisationPipeline):
             x_mean (float): Mean of the input parameters for standardisation.
             x_std (float): Standard deviation of the input parameters
                 for standardisation.
+            standardise_x (bool): Whether to standardise the input
+                parameters. Defaults to False.
+            standardise_y (bool): Whether to standardise the spectrum.
+                Defaults to False.
 
         Returns:
             tuple: Standardised spectrum and input parameters.
@@ -48,40 +54,44 @@ class standardise(NormalisationPipeline):
         self.y_std = y_std
         self.x_mean = x_mean
         self.x_std = x_std
+        self.standardise_x = standardise_x
+        self.standardise_y = standardise_y
 
     def forward(
-        self, y: jnp.ndarray, x: jnp.ndarray | None = None
-    ) -> tuple[jnp.ndarray, jnp.ndarray | None]:
+        self, y: jnp.ndarray, x: jnp.ndarray
+    ) -> tuple[jnp.ndarray, jnp.ndarray]:
         """Standardise the spectrum and input parameters.
 
         Args:
             y (jnp.ndarray): Spectrum array.
-            x (jnp.ndarray, optional): Input parameters array.
-            Defaults to None.
+            x (jnp.ndarray): Input parameters array.
 
         Returns:
             tuple: Standardised spectrum and input parameters.
         """
-        y = (y - self.y_mean) / self.y_std
-        if x is not None:
+        if self.standardise_y:
+            y = (y - self.y_mean) / self.y_std
+
+        if self.standardise_x:
             x = (x - self.x_mean) / self.x_std
         return y, x
 
     def backward(
-        self, y: jnp.ndarray, x: jnp.ndarray | None = None
-    ) -> tuple[jnp.ndarray, jnp.ndarray | None]:
+        self, y: jnp.ndarray, x: jnp.ndarray
+    ) -> tuple[jnp.ndarray, jnp.ndarray]:
         """Destandardise the spectrum and input parameters.
 
         Args:
             y (jnp.ndarray): Standardised spectrum array.
-            x (jnp.ndarray, optional): Standardised input parameters array.
-                Defaults to None.
+            x (jnp.ndarray): Standardised input parameters array.
 
         Returns:
             tuple: Destandardised spectrum and input parameters.
         """
-        y = y * self.y_std + self.y_mean
-        if x is not None:
+        if self.standardise_y:
+            y = y * self.y_std + self.y_mean
+
+        if self.standardise_x:
             x = x * self.x_std + self.x_mean
         return y, x
 
