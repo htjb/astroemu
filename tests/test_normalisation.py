@@ -1,12 +1,13 @@
 """Testing the normalisation functions."""
 
-import pytest
+import glob
 
 import jax.numpy as jnp
+import pytest
 
-from astroemu.utils import compute_mean_std
+from astroemu.dataloaders import SpectrumDataset, load_spectrum
 from astroemu.normalisation import log_base_10, standardise
-from astroemu.dataloaders import load_spectrum
+from astroemu.utils import compute_mean_std
 
 
 def test_log_10_norm() -> None:
@@ -15,7 +16,6 @@ def test_log_10_norm() -> None:
     y = spec["power"]
     x = spec["astro_params"].item()
     x = jnp.array([x[k] for k in x.keys()])
-    print(x)
 
     logger = log_base_10(xselector=jnp.arange(len(x)))
     unchanged_y, logged_params = logger.forward(y, x)
@@ -77,3 +77,49 @@ def test_log_10_norm() -> None:
             "x after log_base_10 with log_all_x should be log10 of x,"
             + "even if xselector is also provided."
         )
+
+
+def test_standardise() -> None:
+    """Test the standardise normalisation pipeline."""
+    specloader = SpectrumDataset(
+        files=glob.glob("tests/example_data/sample_*.npz"),
+        x="k",
+        y="power",
+        variable_input=["astro_params", "cosmo_params"],
+        tiling=False,  # turn off tiling for testing
+    )
+
+    y_mean, y_std, x_mean, x_std = compute_mean_std(
+        specloader.get_batch_iterator(32)
+    )
+
+    normaliser = standardise(
+        y_mean=y_mean,
+        y_std=y_std,
+        x_mean=x_mean,
+        x_std=x_std,
+        standardise_x=True,
+        standardise_y=True,
+    )
+
+    all_y, all_x = [], []
+    for y, x in specloader.get_batch_iterator(32):
+        standardised_y, standardised_x = normaliser.forward(y, x)
+        all_y.append(standardised_y)
+        all_x.append(standardised_x)
+
+    all_y = jnp.concatenate(all_y, axis=0)
+    all_x = jnp.concatenate(all_x, axis=0) 
+
+    assert jnp.allclose(
+        jnp.mean(all_y, axis=0), jnp.zeros_like(all_y.shape[-1]), atol=1e-5
+    ), "Mean of standardised y should be close to 0."
+    assert jnp.allclose(
+        jnp.std(all_y, axis=0), jnp.ones_like(all_y.shape[-1]), atol=1e-5
+    ), "Std of standardised y should be close to 1."
+    assert jnp.allclose(
+        jnp.mean(all_x, axis=0), jnp.zeros_like(all_x.shape[-1]), atol=1e-5
+    ), "Mean of standardised x should be close to 0."
+    assert jnp.allclose(
+        jnp.std(all_x, axis=0), jnp.ones_like(all_x.shape[-1]), atol=1e-5
+    ), "Std of standardised x should be close to 1."
