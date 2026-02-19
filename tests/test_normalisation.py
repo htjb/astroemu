@@ -74,7 +74,7 @@ def test_log_10_norm() -> None:
     )
 
     with pytest.warns(
-        UserWarning, match="log_all_y is True, overriding yselector."
+        UserWarning, match="log_all_y is True, overriding y_selector."
     ):
         logger = log_base_10(y_selector=[0, 2], log_all_y=True)
         logged_y, unchanged_x, unchanged_params = logger.forward(
@@ -87,7 +87,7 @@ def test_log_10_norm() -> None:
         )
 
     with pytest.warns(
-        UserWarning, match="log_all_x is True, overriding xselector."
+        UserWarning, match="log_all_x is True, overriding x_selector."
     ):
         logger = log_base_10(x_selector=[0, 2], log_all_x=True)
         unchanged_y, logged_x, unchanged_params = logger.forward(
