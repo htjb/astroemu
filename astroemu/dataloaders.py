@@ -55,10 +55,10 @@ class SpectrumDataset:
                 Defaults to None.
             tiling (bool, optional): Whether to tile input/output parameters.
                 This is True by default since this is what makes
-                astroemu (and globaemu) tick. However, you might want 
-                to turn it off if you want to use the dataset for 
+                astroemu (and globaemu) tick. However, you might want
+                to turn it off if you want to use the dataset for
                 something other than
-                emulation or if you want to calcualte things like 
+                emulation or if you want to calcualte things like
                 rolling averages using astroemu.utils.compute_mean_std. Note
                 normalisation is applied before tiling.
                 Defaults to True.
@@ -80,7 +80,9 @@ class SpectrumDataset:
         """Return number of files in dataset."""
         return len(self.files)
 
-    def __getitem__(self, idx: int) -> tuple[jnp.ndarray, jnp.ndarray]:
+    def __getitem__(
+        self, idx: int
+    ) -> tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
         """Get spectrum and input parameters for given index.
 
         Args:
@@ -126,7 +128,8 @@ class SpectrumDataset:
         When tiling=False, yields (specs, x, inputs) with shapes
         (batch, len_x), (batch, len_x), and (batch, n_params) respectively.
         This mode is suitable for computing rolling statistics via
-        astroemu.utils.compute_mean_std.
+        astroemu.utils.compute_mean_std and building
+        normalisation pipelines.
 
         Args:
             batch_size (int): Number of samples per batch.

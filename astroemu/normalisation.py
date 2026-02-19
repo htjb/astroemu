@@ -127,8 +127,8 @@ class log_base_10(NormalisationPipeline):
 
     def __init__(
         self,
-        yselector: list[int] | jnp.ndarray | None = None,
-        xselector: list[int] | jnp.ndarray | None = None,
+        y_selector: list[int] | jnp.ndarray | None = None,
+        x_selector: list[int] | jnp.ndarray | None = None,
         params_selector: list[int] | jnp.ndarray | None = None,
         log_all_y: bool = False,
         log_all_x: bool = False,
@@ -138,38 +138,40 @@ class log_base_10(NormalisationPipeline):
         """Logarithm base 10 transformation for numerical stability.
 
         Args:
-            yselector (list[int] | None): columns of the spectrum to apply
+            y_selector (list[int] | None): columns of the spectrum to apply
                 log transformation. Assumes spectra are in the last dimension.
                 None returns y without any transformation.
-            xselector (list[int] | None): indices of the independent variable
+            x_selector (list[int] | None): indices of the independent variable
                 to apply log transformation. None returns x unchanged.
             params_selector (list[int] | None): columns of the input parameters
                 to apply log transformation. Assumes parameters are in the last
                 dimension. None returns params without any transformation.
             log_all_y (bool): If True, apply log transformation to all columns
-                of the spectrum. Overrides yselector if True.
+                of the spectrum. Overrides y_selector if True.
             log_all_x (bool): If True, apply log transformation to all elements
-                of the independent variable. Overrides xselector if True.
+                of the independent variable. Overrides x_selector if True.
             log_all_params (bool): If True, apply log transformation to all
                 columns of the input parameters. Overrides params_selector.
             eps (float): small value to add to avoid log(0).
         """
-        self.yselector = yselector
-        self.xselector = xselector
+        self.y_selector = y_selector
+        self.x_selector = x_selector
         self.params_selector = params_selector
         self.log_all_y = log_all_y
         self.log_all_x = log_all_x
         self.log_all_params = log_all_params
         self.eps = eps
 
-        if log_all_y and yselector is not None:
-            warnings.warn("log_all_y is True, overriding yselector.")
+        if log_all_y and y_selector is not None:
+            warnings.warn("log_all_y is True, overriding y_selector.")
 
-        if log_all_x and xselector is not None:
-            warnings.warn("log_all_x is True, overriding xselector.")
+        if log_all_x and x_selector is not None:
+            warnings.warn("log_all_x is True, overriding x_selector.")
 
         if log_all_params and params_selector is not None:
-            warnings.warn("log_all_params is True, overriding params_selector.")
+            warnings.warn(
+                "log_all_params is True, overriding params_selector."
+            )
 
     def forward(
         self,
@@ -190,17 +192,21 @@ class log_base_10(NormalisationPipeline):
         """
         if self.log_all_y:
             y = jnp.log10(y + self.eps)
-        elif self.yselector is not None:
+        elif self.y_selector is not None:
             mask = (
-                jnp.zeros(y.shape[-1], dtype=bool).at[self.yselector].set(True)
+                jnp.zeros(y.shape[-1], dtype=bool)
+                .at[self.y_selector]
+                .set(True)
             )
             y = jnp.where(mask, jnp.log10(y + self.eps), y)
 
         if self.log_all_x:
             x = jnp.log10(x + self.eps)
-        elif self.xselector is not None:
+        elif self.x_selector is not None:
             mask = (
-                jnp.zeros(x.shape[-1], dtype=bool).at[self.xselector].set(True)
+                jnp.zeros(x.shape[-1], dtype=bool)
+                .at[self.x_selector]
+                .set(True)
             )
             x = jnp.where(mask, jnp.log10(x + self.eps), x)
 
@@ -237,17 +243,21 @@ class log_base_10(NormalisationPipeline):
         """
         if self.log_all_y:
             y = 10**y - self.eps
-        elif self.yselector is not None:
+        elif self.y_selector is not None:
             mask = (
-                jnp.zeros(y.shape[-1], dtype=bool).at[self.yselector].set(True)
+                jnp.zeros(y.shape[-1], dtype=bool)
+                .at[self.y_selector]
+                .set(True)
             )
             y = jnp.where(mask, 10**y - self.eps, y)
 
         if self.log_all_x:
             x = 10**x - self.eps
-        elif self.xselector is not None:
+        elif self.x_selector is not None:
             mask = (
-                jnp.zeros(x.shape[-1], dtype=bool).at[self.xselector].set(True)
+                jnp.zeros(x.shape[-1], dtype=bool)
+                .at[self.x_selector]
+                .set(True)
             )
             x = jnp.where(mask, 10**x - self.eps, x)
 
