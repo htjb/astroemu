@@ -105,8 +105,7 @@ def main() -> None:
 
     if previous_version is None:
         sys.stderr.write(
-            "Could not find version in README.md"
-            + "on master branch.\n"
+            "Could not find version in README.md" + "on master branch.\n"
         )
         sys.exit(1)
 
