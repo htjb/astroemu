@@ -40,12 +40,9 @@ def compute_mean_std(
     """
     spec_sum = None
     spec_sum_sq = None
-    x_sum = jnp.zeros(())
-    x_sum_sq = jnp.zeros(())
     input_sum = None
     input_sum_sq = None
     n_spec_samples = 0
-    n_x_elements = 0
     n_input_samples = 0
 
     for spec, x, input_data in loader:
@@ -58,11 +55,6 @@ def compute_mean_std(
         spec_sum = spec_sum + spec.sum(axis=0)
         spec_sum_sq = spec_sum_sq + (spec**2).sum(axis=0)
         n_spec_samples += batch_size
-
-        # x accumulator: global scalar (all rows identical, treat as flat)
-        x_sum = x_sum + x.sum()
-        x_sum_sq = x_sum_sq + (x**2).sum()
-        n_x_elements += x.size
 
         # input parameter accumulators: sum across batch dimension
         if input_sum is None:
@@ -80,14 +72,15 @@ def compute_mean_std(
     var_spec = (spec_sum_sq / n_spec_samples) - mean_spec**2
     std_spec = jnp.where(jnp.sqrt(var_spec) < 1e-3, 1.0, jnp.sqrt(var_spec))
 
-    mean_x = x_sum / n_x_elements
-    var_x = (x_sum_sq / n_x_elements) - mean_x**2
-    std_x = jnp.where(jnp.sqrt(var_x) < 1e-3, 1.0, jnp.sqrt(var_x))
-
     mean_input = input_sum / n_input_samples
     var_input = (input_sum_sq / n_input_samples) - mean_input**2
     std_input = jnp.where(
         jnp.sqrt(var_input) < 1e-3, 1.0, jnp.sqrt(var_input)
     )
+
+    # global average for x since it's the same for every sample
+    # just take final batch's first row and compute mean/std across columns
+    mean_x = x[0, :].mean()
+    std_x = x[0, :].std()
 
     return mean_spec, std_spec, mean_x, std_x, mean_input, std_input
