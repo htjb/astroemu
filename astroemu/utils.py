@@ -58,9 +58,7 @@ def compute_mean_std(
 
         # input parameter accumulators: sum across batch dimension
         if input_sum is None:
-            input_sum = jnp.zeros(
-                input_data.shape[-1], dtype=input_data.dtype
-            )
+            input_sum = jnp.zeros(input_data.shape[-1], dtype=input_data.dtype)
             input_sum_sq = jnp.zeros(
                 input_data.shape[-1], dtype=input_data.dtype
             )
@@ -74,9 +72,7 @@ def compute_mean_std(
 
     mean_input = input_sum / n_input_samples
     var_input = (input_sum_sq / n_input_samples) - mean_input**2
-    std_input = jnp.where(
-        jnp.sqrt(var_input) < 1e-3, 1.0, jnp.sqrt(var_input)
-    )
+    std_input = jnp.where(jnp.sqrt(var_input) < 1e-3, 1.0, jnp.sqrt(var_input))
 
     # global average for x since it's the same for every sample
     # just take final batch's first row and compute mean/std across columns

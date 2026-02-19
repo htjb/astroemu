@@ -4,6 +4,7 @@ from collections.abc import Generator
 
 import jax
 import jax.numpy as jnp
+
 from astroemu.normalisation import NormalisationPipeline
 
 
