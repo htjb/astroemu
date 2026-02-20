@@ -79,3 +79,32 @@ def test_spectrum_dataset() -> None:
     assert x.shape == tiled_x_shape, (
         "Tiled input shape should be (tiled_y_shape, n_params + 1)."
     )
+
+
+def test_spectrum_dataset_no_variable_input() -> None:
+    """Test SpectrumDataset with variable_input=None.
+
+    When variable_input is not provided, __getitem__ should auto-collect
+    all non-(x,y) keys, merging dict-valued entries and including only
+    numeric scalar entries while skipping string metadata like 'code'.
+    """
+    files = [
+        "tests/example_data/sample_000001.npz",
+        "tests/example_data/sample_000002.npz",
+    ]
+    dataset = SpectrumDataset(
+        files=files,
+        x="k",
+        y="power",
+        variable_input=None,
+        tiling=False,
+        allow_pickle=True,
+    )
+
+    # Should not raise even though .npz files contain string metadata
+    y, x, params = dataset[0]
+
+    assert params.ndim == 1, "Params should be a 1-D array."
+    assert params.dtype == jnp.float32, "Params should be float32."
+    # String keys ('code', 'code_version') must be excluded
+    assert params.shape[0] > 0, "Params array should not be empty."

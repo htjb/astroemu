@@ -102,20 +102,24 @@ class SpectrumDataset:
         x = jnp.array(input[self.x])
         y = jnp.array(input[self.y])
         if self.varied_input:
-            input = [input[k].item() for k in self.varied_input]
+            raw = [(k, input[k].item()) for k in self.varied_input]
         else:
-            input = [
-                input[k].item()
+            raw = [
+                (k, input[k].item())
                 for k in sorted(input.keys())
                 if k not in [self.x, self.y]
             ]
 
-        # combine multiple input dictionaries into one if necessary
-        if len(input) > 1:
-            if type(input[0]) is dict:
-                input = {k: v for d in input for k, v in d.items()}
+        # Build a single params dict: merge dict-valued entries,
+        # add numeric scalars by key, skip non-numeric metadata (e.g. strings).
+        params: dict = {}
+        for k, val in raw:
+            if isinstance(val, dict):
+                params.update(val)
+            elif isinstance(val, (int, float)):
+                params[k] = val
 
-        input = jnp.array(list(input.values()), dtype=jnp.float32)
+        input = jnp.array(list(params.values()), dtype=jnp.float32)
 
         return y, x, input
 
