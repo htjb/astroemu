@@ -1,26 +1,29 @@
 """Data loaders for emu package."""
 
+from collections.abc import Generator
+
+import jax
 import jax.numpy as jnp
-import torch
-from emu.normalisation import NormalisationPipeline
-from torch.utils.data import Dataset
+
+from astroemu.normalisation import NormalisationPipeline
 
 
-def load_spectrum(file: str) -> dict:
+def load_spectrum(file: str, allow_pickle: bool = False) -> dict:
     """Load spectrum data from .npz file.
 
     Args:
         file (str): Path to .npz file.
+        allow_pickle (bool): Whether to allow loading pickled objects.
 
     Returns:
         dict: Dictionary containing data from .npz file.
     """
-    data = jnp.load(file)
+    data = jnp.load(file, allow_pickle=allow_pickle)
     input = {k: data[k] for k in data.files}
     return input
 
 
-class SpectrumDataset(Dataset):
+class SpectrumDataset:
     """Dataset for loading spectra from .npz files.
 
     Allows for optional preprocessing via a forward pipeline and
@@ -32,8 +35,12 @@ class SpectrumDataset(Dataset):
         files: list[str],
         x: str,
         y: str,
-        forward_pipeline: NormalisationPipeline | None = None,
+        forward_pipeline: NormalisationPipeline
+        | list[NormalisationPipeline]
+        | None = None,
         variable_input: list[str] | str | None = None,
+        tiling: bool = True,
+        allow_pickle: bool = False,
     ) -> None:
         """Initialize SpectrumDataset.
 
@@ -47,107 +54,128 @@ class SpectrumDataset(Dataset):
                 for variable input parameters.
                 If None, all parameters except x and y are used.
                 Defaults to None.
+            tiling (bool, optional): Whether to tile input/output parameters.
+                This is True by default since this is what makes
+                astroemu (and globaemu) tick. However, you might want
+                to turn it off if you want to use the dataset for
+                something other than
+                emulation or if you want to calcualte things like
+                rolling averages using astroemu.utils.compute_mean_std. Note
+                normalisation is applied before tiling.
+                Defaults to True.
+            allow_pickle (bool): Whether to allow loading pickled objects
+                from .npz files. Defaults to False.
         """
         self.files = files
         self.varied_input = variable_input
-        self.forward_pipeline = forward_pipeline
+        if type(variable_input) is str:
+            self.varied_input = [variable_input]
+        self.forward_pipeline = (
+            forward_pipeline
+            if isinstance(forward_pipeline, list)
+            else [forward_pipeline]
+            if forward_pipeline is not None
+            else []
+        )
         self.x = x
         self.y = y
+        self.tiling = tiling
+        self.allow_pickle = allow_pickle
 
     def __len__(self) -> int:
         """Return number of files in dataset."""
         return len(self.files)
 
-    def __getitem__(self, idx: int) -> tuple[torch.Tensor, torch.Tensor]:
+    def __getitem__(
+        self, idx: int
+    ) -> tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
         """Get spectrum and input parameters for given index.
 
         Args:
             idx (int): Index of the data point.
 
         Returns:
-            tuple[torch.Tensor, torch.Tensor]: Tuple of (spectrum,
+            tuple[jnp.ndarray, jnp.ndarray]: Tuple of (spectrum,
                 input parameters).
         """
-        input = load_spectrum(self.files[idx])
-        x = torch.tensor(input[self.x])
-        y = torch.tensor(input[self.y])
+        input = load_spectrum(self.files[idx], allow_pickle=self.allow_pickle)
+        x = jnp.array(input[self.x])
+        y = jnp.array(input[self.y])
         if self.varied_input:
-            input = torch.tensor(
-                [input[k].item() for k in self.varied_input],
-                dtype=torch.float32,
-            )
+            raw = [(k, input[k].item()) for k in self.varied_input]
         else:
-            input = torch.tensor(
-                [
-                    input[k].item()
-                    for k in sorted(input.keys())
-                    if k not in [self.x, self.y]
-                ],
-                dtype=torch.float32,
-            )
-        input = torch.tile(
-            input, (y.shape[0], 1)
-        )  # Ensure input shape matches spec
-        input = torch.cat(
-            [x[:, None], input], axis=1
-        )  # Concatenate wavelength with parameters
-        if self.forward_pipeline:
-            return self.forward_pipeline.forward(y, input)
-        else:
-            return y, input
+            raw = [
+                (k, input[k].item())
+                for k in sorted(input.keys())
+                if k not in [self.x, self.y]
+            ]
 
+        # Build a single params dict: merge dict-valued entries,
+        # add numeric scalars by key, skip non-numeric metadata (e.g. strings).
+        params: dict = {}
+        for k, val in raw:
+            if isinstance(val, dict):
+                params.update(val)
+            elif isinstance(val, int | float):
+                params[k] = val
 
-class NormalizeSpectrumDataset(SpectrumDataset):
-    """Dataset for loading and normalizing spectra from .npz files.
+        input = jnp.array(list(params.values()), dtype=jnp.float32)
 
-    Applies a super forward pipeline followed by a normalization pipeline.
-    """
+        return y, x, input
 
-    def __init__(
+    def get_batch_iterator(
         self,
-        files: list[str],
-        x: str,
-        y: str,
-        forward_pipeline: NormalisationPipeline | None = None,
-        super_forward_pipeline: NormalisationPipeline | None = None,
-        variable_input: list[str] | str | None = None,
-    ) -> None:
-        """Initialize NormalizeSpectrumDataset.
+        batch_size: int,
+        shuffle: bool = True,
+        key: jax.Array | None = None,
+    ) -> Generator:
+        """Yield batches of spectra and inputs as jnp.ndarray.
+
+        When tiling=True, yields (specs_flat, concat_inputs) where
+        specs_flat has shape (batch * len_x,) and concat_inputs has shape
+        (batch * len_x, n_params + 1) with x prepended as the first column.
+
+        When tiling=False, yields (specs, x, inputs) with shapes
+        (batch, len_x), (batch, len_x), and (batch, n_params) respectively.
+        This mode is suitable for computing rolling statistics via
+        astroemu.utils.compute_mean_std and building
+        normalisation pipelines.
 
         Args:
-            files (list[str]): List of file paths to .npz files.
-            x (str): Key for independent variable in .npz files.
-            y (str): Key for dependent variable in .npz files.
-            forward_pipeline (Any, optional): Normalization pipeline.
-                Defaults to None.
-            super_forward_pipeline (Any, optional): Preprocessing pipeline.
-                Defaults to None.
-            variable_input (list[str] | str | None, optional): Keys
-                for variable input parameters.
-                If None, all parameters except x and y are used.
-                Defaults to None.
+            batch_size (int): Number of samples per batch.
+            shuffle (bool): Whether to shuffle indices. Defaults to True.
+            key (jax.Array | None): JAX PRNG key for shuffling.
+                Required when shuffle=True. Defaults to None.
+
+        Yields:
+            tiling=True:  tuple[jnp.ndarray, jnp.ndarray]
+                (specs_flat, concat_inputs)
+            tiling=False: tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]
+                (specs, x, inputs)
         """
-        super().__init__(
-            files,
-            x,
-            y,
-            forward_pipeline=super_forward_pipeline,
-            variable_input=variable_input,
-        )
-        self.normalize_pipeline = forward_pipeline
+        n = len(self)
+        indices = jnp.arange(n)
+        if shuffle:
+            if key is None:
+                key = jax.random.PRNGKey(0)
+            indices = jax.random.permutation(key, indices)
 
-    def __getitem__(self, idx: int) -> tuple[torch.Tensor, torch.Tensor]:
-        """Get normalized spectrum and input parameters for given index.
+        for start in range(0, n, batch_size):
+            batch_indices = indices[start : start + batch_size]
+            specs, x, inputs = zip(*[self[int(i)] for i in batch_indices])
+            specs = jnp.stack(specs)
+            x = jnp.stack(x)
+            inputs = jnp.stack(inputs)
 
-        Args:
-            idx (int): Index of the data point.
+            for pipeline in self.forward_pipeline:
+                specs, x, inputs = pipeline.forward(specs, x, inputs)
 
-        Returns:
-            tuple[torch.Tensor, torch.Tensor]: Tuple of (normalized spectrum,
-                input parameters).
-        """
-        y, input = super().__getitem__(idx)
-        if self.normalize_pipeline:
-            return self.normalize_pipeline.forward(y, input)
-        else:
-            return y, input
+            if self.tiling:
+                # tile params to match each x point, then prepend x column
+                inputs = jnp.repeat(inputs, repeats=specs.shape[-1], axis=0)
+                inputs = jnp.concatenate(
+                    [x.flatten()[:, None], inputs], axis=-1
+                )
+                yield specs.flatten(), inputs
+            else:
+                yield specs, x, inputs

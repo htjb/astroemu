@@ -1,25 +1,43 @@
 """Utility functions for emu package."""
 
-import torch
+from collections.abc import Iterator
+
+import jax.numpy as jnp
 
 
 def compute_mean_std(
-    loader: torch.utils.data.DataLoader,
-) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+    loader: Iterator[tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]],
+) -> tuple[
+    jnp.ndarray,
+    jnp.ndarray,
+    jnp.ndarray,
+    jnp.ndarray,
+    jnp.ndarray,
+    jnp.ndarray,
+]:
     """Memory safe mean and std computation.
 
+    Expects the loader to yield three-tuples (spec, x, inputs) as produced
+    by SpectrumDataset.get_batch_iterator() with tiling=False.
+
+    Since x (the independent variable) is identical for every sample in the
+    dataset, its mean and std are computed as global scalars over all elements
+    rather than per-column statistics.
+
     Args:
-        loader: DataLoader returning (spec, input) where:
-            - spec: [batch_size, 5000]
-            - input: [batch_size, 5000, N]
+        loader: Iterable yielding (spec, x, inputs) where:
+            - spec:   (batch_size, len_x)
+            - x:      (batch_size, len_x)
+            - inputs: (batch_size, n_params)
 
     Returns:
-        mean_spec: [5000] - mean across batches
-        std_spec: [5000] - std across batches
-        mean_input: [N] - mean across batches and the 5000 dimension
-        std_input: [N] - std across batches and the 5000 dimension
+        mean_spec:   (len_x,)  - per-frequency mean across batches
+        std_spec:    (len_x,)  - per-frequency std across batches
+        mean_x:      scalar Array - global mean of the independent variable
+        std_x:       scalar Array - global std of the independent variable
+        mean_input:  (n_params,) - per-parameter mean across batches
+        std_input:   (n_params,) - per-parameter std across batches
     """
-    # Accumulators
     spec_sum = None
     spec_sum_sq = None
     input_sum = None
@@ -27,57 +45,44 @@ def compute_mean_std(
     n_spec_samples = 0
     n_input_samples = 0
 
-    for spec, input_data in loader:
-        batch_size = spec.size(0)
+    for spec, x, input_data in loader:
+        batch_size = spec.shape[0]
 
-        # === Process spec ===
-        # spec shape: [batch_size, 5000] -> we want stats across batch dim
+        # spectrum accumulators: sum across batch dimension
         if spec_sum is None:
-            spec_sum = torch.zeros(
-                spec.size(1), dtype=spec.dtype, device=spec.device
-            )
-            spec_sum_sq = torch.zeros(
-                spec.size(1), dtype=spec.dtype, device=spec.device
-            )
-
-        spec_sum += spec.sum(dim=0)  # sum across batch
-        spec_sum_sq += (spec**2).sum(dim=0)  # sum of squares across batch
+            spec_sum = jnp.zeros(spec.shape[1], dtype=spec.dtype)
+            spec_sum_sq = jnp.zeros(spec.shape[1], dtype=spec.dtype)
+        spec_sum = spec_sum + spec.sum(axis=0)
+        spec_sum_sq = spec_sum_sq + (spec**2).sum(axis=0)
         n_spec_samples += batch_size
 
-        # === Process input ===
-        # input shape: [batch_size, 5000, N] -> we want stats across
-        # batch and 5000 dims
-        input_flat = input_data.view(
-            -1, input_data.size(-1)
-        )  # [batch_size * 5000, N]
-
+        # input parameter accumulators: sum across batch dimension
         if input_sum is None:
-            input_sum = torch.zeros(
-                input_data.size(-1),
-                dtype=input_data.dtype,
-                device=input_data.device,
+            input_sum = jnp.zeros(input_data.shape[-1], dtype=input_data.dtype)
+            input_sum_sq = jnp.zeros(
+                input_data.shape[-1], dtype=input_data.dtype
             )
-            input_sum_sq = torch.zeros(
-                input_data.size(-1),
-                dtype=input_data.dtype,
-                device=input_data.device,
-            )
+        input_sum = input_sum + input_data.sum(axis=0)
+        input_sum_sq = input_sum_sq + (input_data**2).sum(axis=0)
+        n_input_samples += batch_size
 
-        input_sum += input_flat.sum(
-            dim=0
-        )  # sum across flattened batch*5000 dim
-        input_sum_sq += (input_flat**2).sum(dim=0)  # sum of squares
-        n_input_samples += input_flat.size(0)  # batch_size * 5000
-
-    # Compute means and stds
     mean_spec = spec_sum / n_spec_samples
-    var_spec = (spec_sum_sq / n_spec_samples) - (mean_spec**2)
-    std_spec = torch.where(var_spec <= 1e-3, 1, torch.sqrt(var_spec))
+    var_spec = (spec_sum_sq / n_spec_samples) - mean_spec**2
+    var_spec = jnp.where(
+        var_spec < 1e-6, 1e-6, var_spec
+    )  # avoid divide-by-zero
+    std_spec = jnp.where(jnp.sqrt(var_spec) < 1e-3, 1.0, jnp.sqrt(var_spec))
 
     mean_input = input_sum / n_input_samples
-    var_input = (input_sum_sq / n_input_samples) - (mean_input**2)
-    std_input = torch.sqrt(
-        torch.clamp(var_input, min=1e-8)
-    )  # clamp for numerical stability
+    var_input = (input_sum_sq / n_input_samples) - mean_input**2
+    var_input = jnp.where(
+        var_input < 1e-6, 1e-6, var_input
+    )  # avoid divide-by-zero
+    std_input = jnp.where(jnp.sqrt(var_input) < 1e-3, 1.0, jnp.sqrt(var_input))
 
-    return mean_spec, std_spec, mean_input, std_input
+    # global average for x since it's the same for every sample
+    # just take final batch's first row and compute mean/std across columns
+    mean_x = x[0, :].mean()
+    std_x = x[0, :].std()
+
+    return mean_spec, std_spec, mean_x, std_x, mean_input, std_input
