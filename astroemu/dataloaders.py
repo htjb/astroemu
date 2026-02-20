@@ -168,7 +168,7 @@ class SpectrumDataset:
 
             if self.tiling:
                 # tile params to match each x point, then prepend x column
-                inputs = jnp.tile(inputs, (specs.shape[-1], 1))
+                inputs = jnp.repeat(inputs, repeats=specs.shape[-1], axis=0)
                 inputs = jnp.concatenate(
                     [x.flatten()[:, None], inputs], axis=-1
                 )
