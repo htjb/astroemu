@@ -8,7 +8,7 @@ import jax.numpy as jnp
 from astroemu.normalisation import NormalisationPipeline
 
 
-def load_spectrum(file: str, allow_pickle: bool =False) -> dict:
+def load_spectrum(file: str, allow_pickle: bool = False) -> dict:
     """Load spectrum data from .npz file.
 
     Args:
@@ -63,7 +63,7 @@ class SpectrumDataset:
                 rolling averages using astroemu.utils.compute_mean_std. Note
                 normalisation is applied before tiling.
                 Defaults to True.
-            allow_pickle (bool): Whether to allow loading pickled objects 
+            allow_pickle (bool): Whether to allow loading pickled objects
                 from .npz files. Defaults to False.
         """
         self.files = files
@@ -116,7 +116,7 @@ class SpectrumDataset:
         for k, val in raw:
             if isinstance(val, dict):
                 params.update(val)
-            elif isinstance(val, (int, float)):
+            elif isinstance(val, int | float):
                 params[k] = val
 
         input = jnp.array(list(params.values()), dtype=jnp.float32)
