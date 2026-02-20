@@ -137,7 +137,7 @@ def train(
             params, opt_state, batch_loss = train_step(
                 params, opt_state, inputs, targets
             )
-            epoch_train_loss += float(batch_loss)
+            epoch_train_loss += batch_loss
             n_train_batches += 1
         epoch_train_loss /= n_train_batches
 
@@ -147,7 +147,7 @@ def train(
         for targets, inputs in val_dataset.get_batch_iterator(
             batch_size, shuffle=False
         ):
-            epoch_val_loss += float(val_step(params, inputs, targets))
+            epoch_val_loss += val_step(params, inputs, targets)
             n_val_batches += 1
         epoch_val_loss /= n_val_batches
 
