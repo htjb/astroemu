@@ -20,16 +20,16 @@ def save(
     train_losses: list[float],
     val_losses: list[float],
     hidden_size: int,
-    nlayers: int,
-    act: str,
-    epochs: int,
-    patience: int,
-    learning_rate: float,
-    weight_decay: float,
+    nlayers: int, 
     loss: str,
     train_dataset: SpectrumDataset,
     val_dataset: SpectrumDataset,
     test_dataset: SpectrumDataset,
+    act: str = "relu",
+    epochs: int = 1000,
+    patience: int = 50,
+    learning_rate: float = 1e-3,
+    weight_decay: float = 1e-4,
 ) -> None:
     """Save a trained emulator to a .astroemu file.
 
