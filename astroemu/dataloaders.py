@@ -8,18 +8,17 @@ import jax.numpy as jnp
 from astroemu.normalisation import NormalisationPipeline
 
 
-def load_spectrum(file: str) -> dict:
+def load_spectrum(file: str, allow_pickle: bool =False) -> dict:
     """Load spectrum data from .npz file.
 
     Args:
         file (str): Path to .npz file.
+        allow_pickle (bool): Whether to allow loading pickled objects.
 
     Returns:
         dict: Dictionary containing data from .npz file.
     """
-    # Note: We use allow_pickle=True to load the .npz files, which may contain
-    # jnp.ndarrays.
-    data = jnp.load(file, allow_pickle=True)
+    data = jnp.load(file, allow_pickle=allow_pickle)
     input = {k: data[k] for k in data.files}
     return input
 
