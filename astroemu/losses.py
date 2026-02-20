@@ -1,8 +1,9 @@
 """Loss functions for astroemu."""
 
+import jax
 import jax.numpy as jnp
 
-
+@jax.jit
 def mse(predictions: jnp.ndarray, targets: jnp.ndarray) -> jnp.ndarray:
     """Mean squared error loss.
 
