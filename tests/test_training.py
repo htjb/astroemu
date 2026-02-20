@@ -59,9 +59,7 @@ def test_train_output_types() -> None:
     )
 
     assert isinstance(params, dict), "Returned params should be a dict."
-    assert isinstance(train_losses, list), (
-        "train_losses should be a list."
-    )
+    assert isinstance(train_losses, list), "train_losses should be a list."
     assert isinstance(val_losses, list), "val_losses should be a list."
     assert len(train_losses) == n_epochs, (
         "train_losses should have one entry per epoch."
@@ -78,7 +76,7 @@ def test_train_output_types() -> None:
 
 
 def test_train_params_structure() -> None:
-    """Returned params dict has the expected keys for the given architecture."""
+    """Returned params dict has the expected keys for the architecture."""
     train_ds, val_ds = _make_datasets()
     nlayers = 2
 
@@ -105,7 +103,7 @@ def test_train_params_structure() -> None:
 
 
 def test_train_early_stopping() -> None:
-    """Training terminates at or before max epochs and loss lists stay in sync."""
+    """Training terminates at or before max epochs and loss list are synced."""
     train_ds, val_ds = _make_datasets()
     epochs = 50
 
@@ -126,9 +124,7 @@ def test_train_early_stopping() -> None:
     assert len(train_losses) <= epochs, (
         "Number of epochs run should not exceed the max epochs setting."
     )
-    assert len(train_losses) >= 1, (
-        "At least one epoch should have run."
-    )
+    assert len(train_losses) >= 1, "At least one epoch should have run."
 
 
 def test_train_custom_activation() -> None:

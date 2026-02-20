@@ -39,7 +39,9 @@ _SAVE_KWARGS: dict = dict(
 )
 
 
-def _make_datasets() -> tuple[SpectrumDataset, SpectrumDataset, SpectrumDataset]:
+def _make_datasets() -> tuple[
+    SpectrumDataset, SpectrumDataset, SpectrumDataset
+]:
     return (
         SpectrumDataset(files=_TRAIN_FILES, **_DATASET_KWARGS),
         SpectrumDataset(files=_VAL_FILES, **_DATASET_KWARGS),
@@ -175,7 +177,7 @@ def test_save_load_roundtrip_metadata() -> None:
 
 
 def test_save_load_with_datasets() -> None:
-    """All three datasets are reconstructed as SpectrumDataset when files exist."""
+    """Datasets are reconstructed as SpectrumDataset when files exist."""
     train_ds, val_ds, test_ds = _make_datasets()
     params, train_losses, val_losses = _run_short_training(train_ds, val_ds)
 
@@ -208,7 +210,7 @@ def test_save_load_with_datasets() -> None:
 
 
 def test_load_missing_files_returns_config_dict() -> None:
-    """A warning is raised and config dict returned when data files are missing."""
+    """Warning is raised and config dict returned when data files missing."""
     train_ds, val_ds, test_ds = _make_datasets()
     params, train_losses, val_losses = _run_short_training(train_ds, val_ds)
 
@@ -233,7 +235,8 @@ def test_load_missing_files_returns_config_dict() -> None:
             result = load(path)
 
     assert isinstance(result["train_dataset"], dict), (
-        "train_dataset should fall back to a config dict when files are missing."
+        "train_dataset should fall back to a"
+        + "config dict when files are missing."
     )
     assert "files" in result["train_dataset"], (
         "Config dict should contain the 'files' key."

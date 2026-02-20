@@ -19,8 +19,9 @@ def test_load_spectrum() -> None:
     }
 
     # Load the spectrum
-    loaded_data = load_spectrum("tests/example_data/sample_000001.npz",
-                                allow_pickle=True)
+    loaded_data = load_spectrum(
+        "tests/example_data/sample_000001.npz", allow_pickle=True
+    )
 
     assert isinstance(loaded_data, dict), "Loaded data should be a dictionary."
     assert set(loaded_data.keys()) == set(expected_keys), (
