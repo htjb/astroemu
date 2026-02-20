@@ -3,6 +3,7 @@
 import jax
 import jax.numpy as jnp
 import optax
+from tqdm import tqdm
 
 from astroemu.dataloaders import SpectrumDataset
 from astroemu.losses import mse
@@ -122,7 +123,9 @@ def train(
     best_params = params
     patience_counter = 0
 
-    for epoch in range(epochs):
+    pbar = tqdm(range(epochs), desc="Training epochs")
+
+    for epoch in pbar:
         rng_key, train_key = jax.random.split(rng_key)
 
         # Training pass.
@@ -151,13 +154,6 @@ def train(
         train_losses.append(epoch_train_loss)
         val_losses.append(epoch_val_loss)
 
-        if (epoch + 1) % 10 == 0:
-            print(
-                f"Epoch {epoch + 1}/{epochs} | "
-                f"Train: {epoch_train_loss:.6f} | "
-                f"Val: {epoch_val_loss:.6f}"
-            )
-
         # Early stopping: save best params and reset counter on improvement.
         if epoch_val_loss < best_val_loss:
             best_val_loss = epoch_val_loss
@@ -171,5 +167,13 @@ def train(
                     f"(best val loss: {best_val_loss:.6f})."
                 )
                 break
+
+        pbar.set_postfix(
+            {
+                "train_loss": f"{epoch_train_loss:.6f}",
+                "val_loss": f"{epoch_val_loss:.6f}",
+                "best_val_loss": f"{best_val_loss:.6f}",
+            }
+        )
 
     return best_params, train_losses, val_losses
