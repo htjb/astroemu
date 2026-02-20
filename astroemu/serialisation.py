@@ -29,6 +29,7 @@ def save(
     loss: str,
     train_dataset: SpectrumDataset,
     val_dataset: SpectrumDataset,
+    test_dataset: SpectrumDataset,
 ) -> None:
     """Save a trained emulator to a .astroemu file.
 
@@ -37,8 +38,8 @@ def save(
       - config.json  : hyperparameters, training history, loss criterion,
                        code version, and dataset configurations.
       - params.npz   : network weight arrays.
-      - pipeline.pkl : pickled normalisation pipeline instances for both
-                       the training and validation datasets.
+      - pipeline.pkl : pickled normalisation pipeline instances for the
+                       training, validation, and test datasets.
 
     Args:
         path (str): Destination path. The .astroemu extension is appended
@@ -57,6 +58,8 @@ def save(
         train_dataset (SpectrumDataset): Training dataset whose file paths
             and pipeline are saved.
         val_dataset (SpectrumDataset): Validation dataset whose file paths
+            and pipeline are saved.
+        test_dataset (SpectrumDataset): Test dataset whose file paths
             and pipeline are saved.
     """
     if not path.endswith(".astroemu"):
@@ -90,10 +93,12 @@ def save(
 
     config["train_dataset"] = _dataset_config(train_dataset)
     config["val_dataset"] = _dataset_config(val_dataset)
+    config["test_dataset"] = _dataset_config(test_dataset)
 
     pipelines = {
         "train": train_dataset.forward_pipeline,
         "val": val_dataset.forward_pipeline,
+        "test": test_dataset.forward_pipeline,
     }
 
     with zipfile.ZipFile(path, "w", compression=zipfile.ZIP_DEFLATED) as zf:
@@ -132,14 +137,17 @@ def load(path: str) -> dict:
               used for the training dataset.
             - **val_pipeline** (list): Normalisation pipeline instances
               used for the validation dataset.
-            - **train_dataset** (SpectrumDataset | dict | None):
-              Reconstructed training dataset if all files are found,
-              otherwise the raw config dict. Absent if no training dataset
-              was saved.
-            - **val_dataset** (SpectrumDataset | dict | None):
-              Reconstructed validation dataset if all files are found,
-              otherwise the raw config dict. Absent if no validation dataset
-              was saved.
+            - **test_pipeline** (list): Normalisation pipeline instances
+              used for the test dataset.
+            - **train_dataset** (SpectrumDataset | dict): Reconstructed
+              training dataset if all files are found, otherwise the raw
+              config dict.
+            - **val_dataset** (SpectrumDataset | dict): Reconstructed
+              validation dataset if all files are found, otherwise the raw
+              config dict.
+            - **test_dataset** (SpectrumDataset | dict): Reconstructed
+              test dataset if all files are found, otherwise the raw config
+              dict.
     """
     with zipfile.ZipFile(path, "r") as zf:
         config = json.loads(zf.read("config.json"))
@@ -159,9 +167,10 @@ def load(path: str) -> dict:
         "version": config["version"],
         "train_pipeline": pipelines["train"],
         "val_pipeline": pipelines["val"],
+        "test_pipeline": pipelines["test"],
     }
 
-    for split in ("train", "val"):
+    for split in ("train", "val", "test"):
         key = f"{split}_dataset"
         if key not in config:
             continue

@@ -14,8 +14,9 @@ from astroemu.serialisation import load, save
 from astroemu.train import train
 
 _FILES = sorted(glob.glob("tests/example_data/sample_*.npz"))
-_TRAIN_FILES = _FILES[:80]
-_VAL_FILES = _FILES[80:]
+_TRAIN_FILES = _FILES[:70]
+_VAL_FILES = _FILES[70:85]
+_TEST_FILES = _FILES[85:]
 
 _DATASET_KWARGS: dict = dict(
     x="k",
@@ -38,10 +39,11 @@ _SAVE_KWARGS: dict = dict(
 )
 
 
-def _make_datasets() -> tuple[SpectrumDataset, SpectrumDataset]:
+def _make_datasets() -> tuple[SpectrumDataset, SpectrumDataset, SpectrumDataset]:
     return (
         SpectrumDataset(files=_TRAIN_FILES, **_DATASET_KWARGS),
         SpectrumDataset(files=_VAL_FILES, **_DATASET_KWARGS),
+        SpectrumDataset(files=_TEST_FILES, **_DATASET_KWARGS),
     )
 
 
@@ -62,7 +64,7 @@ def _run_short_training(
 
 def test_save_appends_extension() -> None:
     """save() appends .astroemu when the extension is not provided."""
-    train_ds, val_ds = _make_datasets()
+    train_ds, val_ds, test_ds = _make_datasets()
     params, train_losses, val_losses = _run_short_training(train_ds, val_ds)
 
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -76,6 +78,7 @@ def test_save_appends_extension() -> None:
             **_SAVE_KWARGS,
             train_dataset=train_ds,
             val_dataset=val_ds,
+            test_dataset=test_ds,
         )
 
         assert not Path(bare_path).exists(), (
@@ -95,6 +98,7 @@ def test_save_appends_extension() -> None:
             **_SAVE_KWARGS,
             train_dataset=train_ds,
             val_dataset=val_ds,
+            test_dataset=test_ds,
         )
 
         assert Path(full_path).exists(), (
@@ -107,7 +111,7 @@ def test_save_appends_extension() -> None:
 
 def test_save_load_roundtrip_params() -> None:
     """Loaded params arrays are numerically identical to the saved ones."""
-    train_ds, val_ds = _make_datasets()
+    train_ds, val_ds, test_ds = _make_datasets()
     params, train_losses, val_losses = _run_short_training(train_ds, val_ds)
 
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -120,6 +124,7 @@ def test_save_load_roundtrip_params() -> None:
             **_SAVE_KWARGS,
             train_dataset=train_ds,
             val_dataset=val_ds,
+            test_dataset=test_ds,
         )
         result = load(path)
 
@@ -135,7 +140,7 @@ def test_save_load_roundtrip_params() -> None:
 
 def test_save_load_roundtrip_metadata() -> None:
     """Loaded metadata matches what was saved."""
-    train_ds, val_ds = _make_datasets()
+    train_ds, val_ds, test_ds = _make_datasets()
     params, train_losses, val_losses = _run_short_training(train_ds, val_ds)
 
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -148,6 +153,7 @@ def test_save_load_roundtrip_metadata() -> None:
             **_SAVE_KWARGS,
             train_dataset=train_ds,
             val_dataset=val_ds,
+            test_dataset=test_ds,
         )
         result = load(path)
 
@@ -169,8 +175,8 @@ def test_save_load_roundtrip_metadata() -> None:
 
 
 def test_save_load_with_datasets() -> None:
-    """Datasets are reconstructed as SpectrumDataset when files are present."""
-    train_ds, val_ds = _make_datasets()
+    """All three datasets are reconstructed as SpectrumDataset when files exist."""
+    train_ds, val_ds, test_ds = _make_datasets()
     params, train_losses, val_losses = _run_short_training(train_ds, val_ds)
 
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -183,6 +189,7 @@ def test_save_load_with_datasets() -> None:
             **_SAVE_KWARGS,
             train_dataset=train_ds,
             val_dataset=val_ds,
+            test_dataset=test_ds,
         )
         result = load(path)
 
@@ -192,13 +199,17 @@ def test_save_load_with_datasets() -> None:
     assert isinstance(result["val_dataset"], SpectrumDataset), (
         "val_dataset should be reconstructed as a SpectrumDataset."
     )
+    assert isinstance(result["test_dataset"], SpectrumDataset), (
+        "test_dataset should be reconstructed as a SpectrumDataset."
+    )
     assert result["train_dataset"].files == _TRAIN_FILES
     assert result["val_dataset"].files == _VAL_FILES
+    assert result["test_dataset"].files == _TEST_FILES
 
 
 def test_load_missing_files_returns_config_dict() -> None:
     """A warning is raised and config dict returned when data files are missing."""
-    train_ds, val_ds = _make_datasets()
+    train_ds, val_ds, test_ds = _make_datasets()
     params, train_losses, val_losses = _run_short_training(train_ds, val_ds)
 
     fake_ds = SpectrumDataset(
@@ -216,6 +227,7 @@ def test_load_missing_files_returns_config_dict() -> None:
             **_SAVE_KWARGS,
             train_dataset=fake_ds,
             val_dataset=val_ds,
+            test_dataset=test_ds,
         )
         with pytest.warns(UserWarning, match="could not be found"):
             result = load(path)
@@ -237,6 +249,9 @@ def test_save_load_with_pipeline() -> None:
     val_ds = SpectrumDataset(
         files=_VAL_FILES, forward_pipeline=pipeline, **_DATASET_KWARGS
     )
+    test_ds = SpectrumDataset(
+        files=_TEST_FILES, forward_pipeline=pipeline, **_DATASET_KWARGS
+    )
     params, train_losses, val_losses = _run_short_training(train_ds, val_ds)
 
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -249,14 +264,17 @@ def test_save_load_with_pipeline() -> None:
             **_SAVE_KWARGS,
             train_dataset=train_ds,
             val_dataset=val_ds,
+            test_dataset=test_ds,
         )
         result = load(path)
 
-    assert len(result["train_pipeline"]) == 1, (
-        "Loaded train_pipeline should contain one pipeline instance."
-    )
-    assert isinstance(result["train_pipeline"][0], log_base_10), (
-        "Loaded pipeline should be a log_base_10 instance."
-    )
-    assert result["train_pipeline"][0].log_all_x is True
-    assert result["train_pipeline"][0].log_all_y is True
+    for split in ("train", "val", "test"):
+        pipeline_key = f"{split}_pipeline"
+        assert len(result[pipeline_key]) == 1, (
+            f"Loaded {pipeline_key} should contain one pipeline instance."
+        )
+        assert isinstance(result[pipeline_key][0], log_base_10), (
+            f"Loaded {pipeline_key} should be a log_base_10 instance."
+        )
+        assert result[pipeline_key][0].log_all_x is True
+        assert result[pipeline_key][0].log_all_y is True
