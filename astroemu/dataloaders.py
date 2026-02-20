@@ -66,6 +66,8 @@ class SpectrumDataset:
         """
         self.files = files
         self.varied_input = variable_input
+        if type(variable_input) is str:
+            self.varied_input = [variable_input]
         self.forward_pipeline = (
             forward_pipeline
             if isinstance(forward_pipeline, list)
