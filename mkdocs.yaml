@@ -32,4 +32,5 @@ markdown_extensions:
   - pymdownx.superfences
 nav:
   - Home: index.md
+  - Tutorial: tutorial.md
   - API Reference: api-reference.md
