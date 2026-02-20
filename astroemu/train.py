@@ -176,4 +176,6 @@ def train(
             }
         )
 
+    train_losses = [float(loss) for loss in train_losses]
+    val_losses = [float(loss) for loss in val_losses]
     return best_params, train_losses, val_losses
