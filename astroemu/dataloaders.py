@@ -40,6 +40,7 @@ class SpectrumDataset:
         | None = None,
         variable_input: list[str] | str | None = None,
         tiling: bool = True,
+        allow_pickle: bool = False,
     ) -> None:
         """Initialize SpectrumDataset.
 
@@ -62,6 +63,8 @@ class SpectrumDataset:
                 rolling averages using astroemu.utils.compute_mean_std. Note
                 normalisation is applied before tiling.
                 Defaults to True.
+            allow_pickle (bool): Whether to allow loading pickled objects 
+                from .npz files. Defaults to False.
         """
         self.files = files
         self.varied_input = variable_input
@@ -77,6 +80,7 @@ class SpectrumDataset:
         self.x = x
         self.y = y
         self.tiling = tiling
+        self.allow_pickle = allow_pickle
 
     def __len__(self) -> int:
         """Return number of files in dataset."""
@@ -94,7 +98,7 @@ class SpectrumDataset:
             tuple[jnp.ndarray, jnp.ndarray]: Tuple of (spectrum,
                 input parameters).
         """
-        input = load_spectrum(self.files[idx])
+        input = load_spectrum(self.files[idx], allow_pickle=self.allow_pickle)
         x = jnp.array(input[self.x])
         y = jnp.array(input[self.y])
         if self.varied_input:
