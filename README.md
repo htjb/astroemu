@@ -3,7 +3,7 @@
 | astroemu | Next Generation Emulators |
 |---| ---|
 | Author| Harry Bevins|
-| Version| 0.2.0 |
+| Version| 0.3.0 |
 | Homepage | https://github.com/htjb/astroemu |
 
 UNDER DEVELOPMENT

@@ -58,17 +58,22 @@ def initialise_mlp(
     return {k: v for d in weights for k, v in d.items()}
 
 
-def mlp(params: dict, input: jnp.ndarray) -> jnp.ndarray:
+def mlp(
+    params: dict, input: jnp.ndarray, act: str = "relu"
+) -> jnp.ndarray:
     """Multi-layer perceptron with residual connections.
 
     Args:
         params (dict): MLP parameters.
         input (jnp.ndarray): Input array of shape [..., in_size].
+        act (str): Activation function name from jax.nn. Defaults to
+            "relu". Must be treated as a static argument if JIT-compiling
+            mlp directly (static_argnames=("act",)).
 
     Returns:
         jnp.ndarray: Output array of shape [..., out_size].
     """
-    act_fn = getattr(jax.nn, "relu")
+    act_fn = getattr(jax.nn, act)
     num_layers = len(params) // 2  # total layers: input + hidden(s) + output
 
     x = jnp.dot(input, params["weights0"]) + params["bias0"]
