@@ -164,15 +164,15 @@ def train(
             if patience_counter >= patience:
                 print(
                     f"Early stopping at epoch {epoch + 1} "
-                    f"(best val loss: {best_val_loss:.6f})."
+                    f"(best val loss: {best_val_loss:.4f})."
                 )
                 break
 
         pbar.set_postfix(
             {
-                "train_loss": f"{epoch_train_loss:.6f}",
-                "val_loss": f"{epoch_val_loss:.6f}",
-                "best_val_loss": f"{best_val_loss:.6f}",
+                "train_loss": f"{epoch_train_loss:.4f}",
+                "val_loss": f"{epoch_val_loss:.4f}",
+                "best_val_loss": f"{best_val_loss:.4f}",
             }
         )
 
