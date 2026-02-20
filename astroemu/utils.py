@@ -68,10 +68,16 @@ def compute_mean_std(
 
     mean_spec = spec_sum / n_spec_samples
     var_spec = (spec_sum_sq / n_spec_samples) - mean_spec**2
+    var_spec = jnp.where(
+        var_spec < 1e-6, 1e-6, var_spec
+    )  # avoid divide-by-zero
     std_spec = jnp.where(jnp.sqrt(var_spec) < 1e-3, 1.0, jnp.sqrt(var_spec))
 
     mean_input = input_sum / n_input_samples
     var_input = (input_sum_sq / n_input_samples) - mean_input**2
+    var_input = jnp.where(
+        var_input < 1e-6, 1e-6, var_input
+    )  # avoid divide-by-zero
     std_input = jnp.where(jnp.sqrt(var_input) < 1e-3, 1.0, jnp.sqrt(var_input))
 
     # global average for x since it's the same for every sample
