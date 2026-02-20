@@ -20,7 +20,7 @@ def save(
     train_losses: list[float],
     val_losses: list[float],
     hidden_size: int,
-    nlayers: int, 
+    nlayers: int,
     loss: str,
     train_dataset: SpectrumDataset,
     val_dataset: SpectrumDataset,

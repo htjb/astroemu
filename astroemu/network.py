@@ -58,9 +58,7 @@ def initialise_mlp(
     return {k: v for d in weights for k, v in d.items()}
 
 
-def mlp(
-    params: dict, input: jnp.ndarray, act: str = "relu"
-) -> jnp.ndarray:
+def mlp(params: dict, input: jnp.ndarray, act: str = "relu") -> jnp.ndarray:
     """Multi-layer perceptron with residual connections.
 
     Args:
