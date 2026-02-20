@@ -8,6 +8,7 @@ dependencies = [
     "jax",
     "jaxlib",
     "optax",
+    "tqdm
 ]
 
 [build-system]
