@@ -144,6 +144,9 @@ class SpectrumDataset:
         Args:
             batch_size (int): Number of samples per batch.
             shuffle (bool): Whether to shuffle indices. Defaults to True.
+                When tiling=True, this also shuffles the tiled samples
+                within each batch so the network doesn't see x values
+                in sequential order.
             key (jax.Array | None): JAX PRNG key for shuffling.
                 Required when shuffle=True. Defaults to None.
 
@@ -176,6 +179,16 @@ class SpectrumDataset:
                 inputs = jnp.concatenate(
                     [x.flatten()[:, None], inputs], axis=-1
                 )
-                yield specs.flatten(), inputs
+                specs_flat = specs.flatten()
+
+                # Shuffle tiled samples so network doesn't see x
+                # values in order
+                if shuffle:
+                    key, subkey = jax.random.split(key)
+                    perm = jax.random.permutation(subkey, len(specs_flat))
+                    specs_flat = specs_flat[perm]
+                    inputs = inputs[perm]
+
+                yield specs_flat, inputs
             else:
                 yield specs, x, inputs

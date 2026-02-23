@@ -1,64 +1,59 @@
-# Next Generation Emulators for Cosmology and Astrophysics
+# astroemu — Next Generation Emulators for Cosmology and Astrophysics
 
-| astroemu | Next Generation Emulators |
-|---| ---|
-| Author| Harry Bevins|
-| Version| 0.2.0 |
-| Homepage | https://github.com/htjb/astroemu |
+[![version](https://img.shields.io/badge/version-0.3.0-blue)](https://github.com/htjb/astroemu)
+[![docs](https://readthedocs.org/projects/astroemu/badge/?version=latest)](https://astroemu.readthedocs.io/en/latest/)
+[![license](https://img.shields.io/github/license/htjb/astroemu)](https://github.com/htjb/astroemu/blob/main/LICENSE)
 
-UNDER DEVELOPMENT
+> **Under active development** — interfaces may change between versions.
 
-`astroemu` implements a generalized framework for emulating 
-spectral signals
-and is inspired by the [`globalemu`](https://github.com/htjb/globalemu) package.
+`astroemu` is a generalised framework for emulating spectral signals in
+cosmology and astrophysics, inspired by the
+[`globalemu`](https://github.com/htjb/globalemu) package. Neural network
+emulators are implemented in JAX, with an optax-based training loop and
+PyTorch-style dataloaders.
 
-You can pip install the emulator framework with
+## Installation
 
 ```bash
 pip install astroemu
 ```
 
-although the code is in active development.
+## How it works
 
-The neural network emulators are implemented in JAX and the dataloaders are
-built on top of PyTorch.
+The core idea (shared with `globalemu`) is to input independent variables
+alongside physical model parameters, predicting a single spectral value per
+call. Full spectra are recovered via a vectorised call over all $x$ points.
 
-As with `globalemu` the idea is to input the independent variables alongside 
-the physical parameters of your model then predicting a single corresponding 
-spectral value. Full spectra can then be generated via a vectorised call to 
-the network. The training data is tiled in the dataloaders so that the 
-parameters and independent variables are concatenated as inputs and
-stacked up alongside the outputs. For example if we have a signal 
-$y = f(x, \theta)$ and we have N $\theta$ samples and m $x$ and $y$ values then
-our training data looks like
+Given a signal $y = f(x, \theta)$ with $N$ parameter samples and $m$
+independent variable points, the training data is tiled so that parameters
+and independent variables are concatenated as inputs:
 
-|Input|Output|
-|--|--|
-|[$\theta_{0}$, $x_0$]| $y_0$ |
-|[$\theta_{0}$, $x_1$]| $y_1$ |
-|[$\theta_{0}$, $x_2$]| $y_2$ |
-|[$\theta_{0}$, ...]|...|
-|[$\theta_{0}$, $x_m$]|$y_m$|
-|[..., ...]| ...|
-|[$\theta_N$, $x_m$]|$y_m$|
+| Input | Output |
+|---|---|
+| $[\theta_0,\ x_0]$ | $y_0$ |
+| $[\theta_0,\ x_1]$ | $y_1$ |
+| $[\theta_0,\ \ldots]$ | $\ldots$ |
+| $[\theta_0,\ x_m]$ | $y_m$ |
+| $[\ldots,\ \ldots]$ | $\ldots$ |
+| $[\theta_N,\ x_m]$ | $y_m$ |
 
-For more details see the `globalemu` [paper](https://arxiv.org/abs/2104.04336).
-A paper is in preparation demonstrating applications of this package to a broad 
-range of astrophysical signals.
+For more details see the `globalemu`
+[paper](https://arxiv.org/abs/2104.04336). A paper demonstrating
+applications of `astroemu` to a broad range of astrophysical signals is in
+preparation.
 
 ## Documentation
 
-Docs can be compiled locally with
-
-```
+```bash
 git clone git@github.com:htjb/astroemu.git
 pip install ".[docs]"
 mkdocs serve
 ```
 
-or found on [readthedocs](https://astroemu.readthedocs.io/en/latest/)
+or browse the hosted docs at
+[astroemu.readthedocs.io](https://astroemu.readthedocs.io/en/latest/).
 
 ## Contributions
 
-Contributions are welcome! Please open an issue to discuss and have a 
-read of the Contribution guidelines.
+Contributions are welcome! Please open an issue to discuss and read the
+contribution guidelines before submitting a pull request.

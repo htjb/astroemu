@@ -12,8 +12,9 @@ from astroemu.utils import compute_mean_std
 
 def test_log_10_norm() -> None:
     """Test the log_base_10 normalisation pipeline."""
-    spec = load_spectrum("tests/example_data/sample_000001.npz",
-                         allow_pickle=True)
+    spec = load_spectrum(
+        "tests/example_data/sample_000001.npz", allow_pickle=True
+    )
     y = spec["power"]
     x_freq = spec["k"]
     params_raw = spec["astro_params"].item()
