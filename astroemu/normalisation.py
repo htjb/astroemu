@@ -164,14 +164,23 @@ class log_base_10(NormalisationPipeline):
 
         if log_all_y and y_selector is not None:
             warnings.warn("log_all_y is True, overriding y_selector.")
+        else:
+            if type(self.y_selector) is list:
+                self.y_selector = jnp.array(self.y_selector)
 
         if log_all_x and x_selector is not None:
             warnings.warn("log_all_x is True, overriding x_selector.")
+        else:
+            if type(self.x_selector) is list:
+                self.x_selector = jnp.array(self.x_selector)
 
         if log_all_params and params_selector is not None:
             warnings.warn(
                 "log_all_params is True, overriding params_selector."
             )
+        else:
+            if type(self.params_selector) is list:
+                self.params_selector = jnp.array(self.params_selector)
 
     def forward(
         self,
