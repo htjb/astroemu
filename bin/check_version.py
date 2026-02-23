@@ -10,7 +10,7 @@ import sys
 from packaging import version
 
 # Filestructure
-readme_file = "README.md"
+version_file = "astroemu/_version.py"
 
 
 # Utility functions
@@ -80,32 +80,32 @@ def unit_incremented(version_a: str, version_b: str) -> bool:
 
 
 def get_current_version() -> str:
-    """Get current version of package from README.md."""
-    current_version = run_on_commandline("grep", "Version:", readme_file)
-    current_version = current_version.split("**")[-1].strip()
+    """Get current version of package from astroemu/_version.py."""
+    version_contents = run_on_commandline("grep", "__version__", version_file)
+    current_version = version_contents.split('"')[1].strip()
     return current_version
 
 
 def main() -> None:
     """Check version is consistent and incremented correctly."""
-    # Get current version from readme
+    # Get current version from _version.py
     current_version = get_current_version()
 
     # Get previous version from main branch of code
-    run_on_commandline("git", "fetch", "origin", "master")
-    readme_contents = run_on_commandline(
-        "git", "show", "remotes/origin/master:" + readme_file
+    run_on_commandline("git", "fetch", "origin", "main")
+    version_contents = run_on_commandline(
+        "git", "show", "remotes/origin/main:" + version_file
     )
 
     previous_version = None
-    for line in readme_contents.splitlines():
-        if "Version:" in line:
-            previous_version = line.split("**")[-1].strip()
+    for line in version_contents.splitlines():
+        if "__version__" in line:
+            previous_version = line.split('"')[1].strip()
             break
 
     if previous_version is None:
         sys.stderr.write(
-            "Could not find version in README.md" + "on master branch.\n"
+            "Could not find version in README.md" + "on main branch.\n"
         )
         sys.exit(1)
 
@@ -114,7 +114,7 @@ def main() -> None:
         sys.stderr.write(
             "Version must be incremented by one:\n"
             f"HEAD:   {current_version},\n"
-            f"master: {previous_version}.\n"
+            f"main: {previous_version}.\n"
         )
         sys.exit(1)
 
