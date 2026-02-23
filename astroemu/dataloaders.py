@@ -181,7 +181,8 @@ class SpectrumDataset:
                 )
                 specs_flat = specs.flatten()
 
-                # Shuffle tiled samples so network doesn't see x values in order
+                # Shuffle tiled samples so network doesn't see x
+                # values in order
                 if shuffle:
                     key, subkey = jax.random.split(key)
                     perm = jax.random.permutation(subkey, len(specs_flat))
