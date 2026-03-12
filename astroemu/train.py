@@ -1,5 +1,7 @@
 """Training loop for astroemu."""
 
+from collections.abc import Callable
+
 import jax
 import jax.numpy as jnp
 import optax
@@ -22,6 +24,8 @@ def train(
     weight_decay: float = 1e-4,
     batch_size: int = 32,
     key: int = 0,
+    loss_fn: Callable = mse,
+    loss_kwargs: dict = {},
 ) -> tuple[dict, list[float], list[float]]:
     """Train an MLP emulator on spectral data using AdamW.
 
@@ -44,6 +48,9 @@ def train(
         weight_decay (float): AdamW weight decay. Defaults to 1e-4.
         batch_size (int): Number of spectra per batch. Defaults to 32.
         key (int): Integer seed for JAX PRNG. Defaults to 0.
+        loss_fn (Callable): Loss function to use. Defaults to mse.
+        loss_kwargs (dict): Additional keyword arguments for the loss
+            function. Defaults to an empty dict.
 
     Returns:
         tuple[dict, list[float], list[float]]: Best network parameters,
@@ -87,11 +94,11 @@ def train(
                 updated optimizer state, and scalar batch loss.
         """
 
-        def loss_fn(p: dict) -> jnp.ndarray:
+        def evaluate_loss_fn(p: dict) -> jnp.ndarray:
             preds = mlp(p, inputs, act)
-            return mse(preds.squeeze(-1), targets)
+            return loss_fn(preds.squeeze(-1), targets, **loss_kwargs)
 
-        loss, grads = jax.value_and_grad(loss_fn)(params)
+        loss, grads = jax.value_and_grad(evaluate_loss_fn)(params)
         updates, new_opt_state = optimizer.update(grads, opt_state, params)
         new_params = optax.apply_updates(params, updates)
         return new_params, new_opt_state, loss
@@ -115,7 +122,7 @@ def train(
             jnp.ndarray: Scalar batch loss.
         """
         preds = mlp(params, inputs, act)
-        return mse(preds.squeeze(-1), targets)
+        return loss_fn(preds.squeeze(-1), targets, **loss_kwargs)
 
     train_losses: list[float] = []
     val_losses: list[float] = []
