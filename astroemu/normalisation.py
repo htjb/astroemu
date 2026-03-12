@@ -69,6 +69,12 @@ class standardise(NormalisationPipeline):
         self.standardise_x = standardise_x
         self.standardise_params = standardise_params
 
+        if True not in [standardise_y, standardise_x, standardise_params]:
+            warnings.warn(
+                "No standardisation applied. Consider setting at least one of "
+                "standardise_y, standardise_x, or standardise_params to True."
+            )
+
     def forward(
         self,
         y: jnp.ndarray,
@@ -181,6 +187,15 @@ class log_base_10(NormalisationPipeline):
         else:
             if type(self.params_selector) is list:
                 self.params_selector = jnp.array(self.params_selector)
+
+        if True not in [log_all_y, log_all_x, log_all_params] and all(
+            s is None for s in [y_selector, x_selector, params_selector]
+        ):
+            warnings.warn(
+                "No log transformation applied. Consider setting at least one "
+                "of log_all_y, log_all_x, or log_all_params to True or providing "
+                "a selector."
+            )
 
     def forward(
         self,
