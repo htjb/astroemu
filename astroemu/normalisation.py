@@ -193,7 +193,8 @@ class log_base_10(NormalisationPipeline):
         ):
             warnings.warn(
                 "No log transformation applied. Consider setting at least one "
-                "of log_all_y, log_all_x, or log_all_params to True or providing "
+                "of log_all_y, log_all_x, or log_all_params "
+                "to True or providing "
                 "a selector."
             )
 
